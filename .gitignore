@@ -1,0 +1,15 @@
+.env
+.venv/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+.gtm/
+demo-output/
+*.local.yaml
+.DS_Store

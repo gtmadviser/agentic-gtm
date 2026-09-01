@@ -1,0 +1,3 @@
+interface:
+  display_name: "Audit Deliverability"
+  short_description: "Audit domains, mailboxes, capacity, and suppressions"

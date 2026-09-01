@@ -1,0 +1,3 @@
+interface:
+  display_name: "Inspect Crm"
+  short_description: "Inspect fields before evidence-led CRM analysis"

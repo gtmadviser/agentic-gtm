@@ -1,0 +1,12 @@
+{
+  "name": "agentic-gtm",
+  "version": "0.1.0",
+  "description": "Portable GTM skills backed by a deterministic, approval-gated CLI.",
+  "author": {
+    "name": "GTM Adviser",
+    "url": "https://gtmadviser.com"
+  },
+  "homepage": "https://github.com/gtmadviser/agentic-gtm",
+  "repository": "https://github.com/gtmadviser/agentic-gtm",
+  "license": "MIT AND CC-BY-4.0"
+}

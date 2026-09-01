@@ -1,0 +1,62 @@
+{
+  "version": "2026-08-31",
+  "disclosure": "I have partner arrangements with some of the tools I recommend. It never changes what I recommend, and where I have partner rates I pass the discount to you.",
+  "tools": [
+    {
+      "slug": "ai-ark",
+      "name": "AI Ark",
+      "category": "sourcing",
+      "capabilities": ["account-search", "contact-search", "provenance"],
+      "url": "https://ai-ark.com/",
+      "affiliate": {"active": true, "url": "https://ai-ark.com/?ref=gtmadviser", "partner_benefit": null}
+    },
+    {
+      "slug": "blitzapi",
+      "name": "Blitz",
+      "category": "sourcing",
+      "capabilities": ["account-search", "contact-search", "email-enrichment", "provenance"],
+      "url": "https://blitz-api.ai/",
+      "affiliate": {"active": true, "url": "https://blitz-api.ai/?aff=emanuel", "partner_benefit": null}
+    },
+    {
+      "slug": "hubspot",
+      "name": "HubSpot",
+      "category": "crm",
+      "capabilities": ["contacts", "companies", "opportunities", "activities", "pipelines"],
+      "url": "https://www.hubspot.com/",
+      "affiliate": {"active": false, "url": null, "partner_benefit": null}
+    },
+    {
+      "slug": "instantly",
+      "name": "Instantly",
+      "category": "sequencing",
+      "capabilities": ["email", "paused-campaigns", "campaign-analytics"],
+      "url": "https://instantly.ai/",
+      "affiliate": {"active": true, "url": "https://instantly.ai/?via=emanuel", "partner_benefit": null}
+    },
+    {
+      "slug": "lemlist",
+      "name": "lemlist",
+      "category": "sequencing",
+      "capabilities": ["email", "linkedin", "paused-campaigns", "campaign-analytics"],
+      "url": "https://www.lemlist.com/",
+      "affiliate": {"active": true, "url": "https://get.lemlist.com/xq34wgkvqchh", "partner_benefit": null}
+    },
+    {
+      "slug": "slack",
+      "name": "Slack",
+      "category": "collaboration",
+      "capabilities": ["channel-report", "threads", "verified-posting"],
+      "url": "https://slack.com/",
+      "affiliate": {"active": false, "url": null, "partner_benefit": null}
+    },
+    {
+      "slug": "supabase",
+      "name": "Supabase",
+      "category": "data",
+      "capabilities": ["postgres", "rest-api", "row-level-security", "startup-owned-data"],
+      "url": "https://supabase.com/",
+      "affiliate": {"active": false, "url": null, "partner_benefit": null}
+    }
+  ]
+}

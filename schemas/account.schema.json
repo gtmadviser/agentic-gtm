@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gtmadviser/agentic-gtm/schemas/account.schema.json",
+  "title": "Account",
+  "type": "object",
+  "required": ["provider", "provider_id", "name"],
+  "properties": {
+    "provider": {"type": "string"},
+    "provider_id": {"type": "string"},
+    "name": {"type": "string"},
+    "domain": {"type": ["string", "null"]},
+    "industry": {"type": ["string", "null"]},
+    "employee_count": {"type": ["integer", "null"], "minimum": 0}
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,3 @@
+interface:
+  display_name: "Weekly Gtm Review"
+  short_description: "Run the weekly cross-system GTM review"

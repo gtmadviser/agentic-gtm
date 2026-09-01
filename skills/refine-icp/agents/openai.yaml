@@ -1,0 +1,3 @@
+interface:
+  display_name: "Refine Icp"
+  short_description: "Refine an evidence-backed ICP and anti-ICP"

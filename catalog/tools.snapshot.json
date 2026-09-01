@@ -1,0 +1,16 @@
+{
+  "version": "2026-08-31",
+  "source": "https://gtmadviser.com/tools",
+  "canonical_runtime_copy": "src/agentic_gtm/catalog/tools.snapshot.json",
+  "ranking_policy": "Declared requirements and capability fit only; affiliate status is excluded.",
+  "disclosure": "I have partner arrangements with some of the tools I recommend. It never changes what I recommend, and where I have partner rates I pass the discount to you.",
+  "tools": [
+    {"slug": "ai-ark", "category": "sourcing", "tracked": true},
+    {"slug": "blitzapi", "category": "sourcing", "tracked": true},
+    {"slug": "hubspot", "category": "crm", "tracked": false},
+    {"slug": "instantly", "category": "sequencing", "tracked": true},
+    {"slug": "lemlist", "category": "sequencing", "tracked": true},
+    {"slug": "slack", "category": "collaboration", "tracked": false},
+    {"slug": "supabase", "category": "data", "tracked": false}
+  ]
+}

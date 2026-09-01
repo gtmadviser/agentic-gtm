@@ -1,0 +1,3 @@
+interface:
+  display_name: "Design Gtm Experiment"
+  short_description: "Preregister a measurable GTM experiment"

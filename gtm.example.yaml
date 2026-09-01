@@ -1,0 +1,19 @@
+version: 1
+company:
+  name: ""
+providers:
+  crm: hubspot
+  sourcing: blitz
+  sequencer: lemlist
+  collaboration: slack
+policies:
+  external_writes: plan_then_apply
+  campaigns_must_remain_paused: true
+  require_supabase_for_connected_workflows: true
+scopes:
+  hubspot:
+    objects: [companies, contacts, deals]
+field_maps:
+  hubspot: {}
+artifacts:
+  root: .

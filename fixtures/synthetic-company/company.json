@@ -1,0 +1,11 @@
+{
+  "company": "Northstar Relay",
+  "domain": "northstar-relay.example",
+  "product": "Fictional workflow coordination software for small engineering organizations",
+  "customers": [
+    {"name": "Copper Finch Labs", "status": "won", "employee_count": 34},
+    {"name": "Quiet Harbor Systems", "status": "won", "employee_count": 61},
+    {"name": "Juniper Signal Works", "status": "won", "employee_count": 47}
+  ],
+  "notice": "Every name, domain, person, metric, and event in this fixture is fictional."
+}

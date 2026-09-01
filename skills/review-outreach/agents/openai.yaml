@@ -1,0 +1,3 @@
+interface:
+  display_name: "Review Outreach"
+  short_description: "Review results against preregistered rules"
