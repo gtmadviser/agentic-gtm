@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import math
 import re
+import subprocess
 from pathlib import Path
 
 TEXT_SUFFIXES = {
@@ -49,6 +50,11 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("root", nargs="?", type=Path, default=Path("."))
     parser.add_argument("--deny-file", type=Path)
+    parser.add_argument(
+        "--history",
+        action="store_true",
+        help="Scan every committed patch in the current Git history.",
+    )
     args = parser.parse_args()
     denied = []
     if args.deny_file:
@@ -74,9 +80,32 @@ def main() -> None:
             allowed = (".example", "json-schema.org", "github.com")
             if any(not domain.lower().endswith(allowed) for domain in domains):
                 findings.append(f"{relative}: real-looking domain in fixture")
+    if args.history:
+        history = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(args.root.resolve()),
+                "log",
+                "-p",
+                "--all",
+                "--no-ext-diff",
+                "--text",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        for label, pattern in PATTERNS.items():
+            if pattern.search(history):
+                findings.append(f"Git history: {label}")
+        for term in denied:
+            if term in history.lower():
+                findings.append("Git history: prohibited term")
     if findings:
         raise SystemExit("Public release scan failed:\n" + "\n".join(sorted(set(findings))))
-    print("Public release scan passed")
+    scope = "tree and full history" if args.history else "tree"
+    print(f"Public release scan passed ({scope})")
 
 
 if __name__ == "__main__":
