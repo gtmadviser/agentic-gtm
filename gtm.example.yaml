@@ -6,10 +6,13 @@ providers:
   sourcing: blitz
   sequencer: lemlist
   collaboration: slack
+store:
+  backend: auto        # auto | supabase | files
+  path: .gtm/store     # used by the files backend only
 policies:
   external_writes: plan_then_apply
   campaigns_must_remain_paused: true
-  require_supabase_for_connected_workflows: true
+  require_supabase_for_connected_workflows: false
 scopes:
   hubspot:
     objects: [companies, contacts, deals]

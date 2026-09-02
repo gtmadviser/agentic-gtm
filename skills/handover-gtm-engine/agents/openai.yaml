@@ -1,0 +1,3 @@
+interface:
+  display_name: "Handover GTM Engine"
+  short_description: "Hand an outbound engine to an operator or back to the company"

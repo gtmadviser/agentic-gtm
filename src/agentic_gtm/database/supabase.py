@@ -12,6 +12,8 @@ from ..contracts import ActionPlan, ApplyResult
 
 
 class SupabaseStore:
+    backend = "supabase"
+
     def __init__(
         self, url: str | None = None, key: str | None = None, **client_kwargs: Any
     ) -> None:
@@ -81,6 +83,10 @@ class SupabaseStore:
     def applied_result(self, plan_id: UUID | str) -> ApplyResult | None:
         rows = self.select("apply_results", {"plan_id": f"eq.{plan_id}", "limit": "1"})
         return ApplyResult.model_validate(rows[0]) if rows else None
+
+    def describe(self) -> dict[str, Any]:
+        pending = self.select("action_plans", {"status": "eq.pending", "select": "id"})
+        return {"backend": self.backend, "pending_plans": len(pending)}
 
 
 def supabase_env_present() -> bool:

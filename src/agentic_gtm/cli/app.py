@@ -16,13 +16,24 @@ from rich.table import Table
 
 from .. import __version__
 from ..adapters import adapter_for
+from ..adapters.base import CapabilityError
 from ..catalog import recommend
 from ..config import Settings, has_supabase, load_settings
-from ..contracts import CampaignDraft
-from ..database import SupabaseStore
+from ..contracts import CampaignDraft, CampaignMetrics
+from ..database import Store, open_store
 from ..safety import assert_plan_can_apply, make_plan, redact
 from ..workflows import run_demo
-from ..workspace import initialize_workspace
+from ..workflows.metrics import (
+    CSV_COLUMNS,
+    parse_metrics_csv,
+    render_outreach_review,
+    render_pipeline_review,
+    render_weekly_review,
+    summarize,
+    summarize_pipeline,
+)
+from ..workflows.next import evaluate
+from ..workspace import initialize_workspace, install_git_hook
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -36,6 +47,7 @@ review_app = typer.Typer(no_args_is_help=True)
 report_app = typer.Typer(no_args_is_help=True)
 slack_app = typer.Typer(no_args_is_help=True)
 stack_app = typer.Typer(no_args_is_help=True)
+metrics_app = typer.Typer(no_args_is_help=True)
 app.add_typer(db_app, name="db")
 app.add_typer(sync_app, name="sync")
 app.add_typer(campaign_app, name="campaign")
@@ -43,7 +55,18 @@ app.add_typer(review_app, name="review")
 app.add_typer(report_app, name="report")
 report_app.add_typer(slack_app, name="slack")
 app.add_typer(stack_app, name="stack")
+app.add_typer(metrics_app, name="metrics")
 console = Console()
+
+CREDENTIALS = {
+    "hubspot": "HUBSPOT_ACCESS_TOKEN",
+    "ai_ark": "AI_ARK_API_KEY",
+    "blitz": "BLITZAPI_API_KEY",
+    "lemlist": "LEMLIST_API_KEY",
+    "instantly": "INSTANTLY_API_KEY",
+    "slack": "SLACK_BOT_TOKEN|SLACK_WEBHOOK_URL",
+}
+METRICS_CONFLICT = "provider,campaign,variant,window_start,window_end"
 
 
 def _json_default(value: Any) -> Any:
@@ -75,12 +98,9 @@ def emit(ctx: typer.Context, payload: Any, *, title: str | None = None) -> None:
         console.print(safe)
 
 
-def connected_store() -> SupabaseStore:
-    if not has_supabase():
-        raise RuntimeError(
-            "Connected workflows require SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env"
-        )
-    return SupabaseStore()
+def connected_store(ctx: typer.Context, settings: Settings | None = None) -> Store:
+    quiet = bool((ctx.find_root().obj or {}).get("json"))
+    return open_store(settings or load_settings(), quiet=quiet)
 
 
 def configured_provider(settings: Settings, category: str) -> str:
@@ -88,6 +108,36 @@ def configured_provider(settings: Settings, category: str) -> str:
     if not provider:
         raise RuntimeError(f"Select providers.{category} explicitly in gtm.yaml")
     return provider
+
+
+def _store_status(settings: Settings) -> dict[str, Any]:
+    configured = settings.store.backend
+    if configured == "supabase" or (configured == "auto" and has_supabase()):
+        active = "supabase"
+    else:
+        active = "files"
+    ready = active == "files" or has_supabase()
+    return {
+        "configured": configured,
+        "active": active,
+        "ready": ready,
+        "path": settings.store.path if active == "files" else None,
+        "supabase_credentials": has_supabase(),
+        "policy_requires_supabase": settings.policies.require_supabase_for_connected_workflows,
+    }
+
+
+def _metrics_from_rows(rows: list[dict[str, Any]]) -> list[CampaignMetrics]:
+    allowed = set(CampaignMetrics.model_fields)
+    result = []
+    for row in rows:
+        try:
+            result.append(
+                CampaignMetrics.model_validate({k: v for k, v in row.items() if k in allowed})
+            )
+        except ValueError:
+            continue
+    return result
 
 
 @app.callback()
@@ -128,9 +178,16 @@ def initialize(
     if not version_file.exists():
         version_file.write_text(f"{__version__}\n", encoding="utf-8")
         created.append(version_file.name)
+    hook = install_git_hook(directory)
     emit(
         ctx,
-        {"directory": str(directory.resolve()), "created": created, "skipped_existing": True},
+        {
+            "directory": str(directory.resolve()),
+            "created": created,
+            "skipped_existing": True,
+            "git_hook_installed": hook,
+            "next": "cp .env.example .env, then run `gtm doctor` and `gtm next`",
+        },
         title="Workspace initialized",
     )
 
@@ -139,32 +196,22 @@ def initialize(
 def doctor(ctx: typer.Context, config: Path = typer.Option(Path("gtm.yaml"))) -> None:
     """Explain which capabilities are ready and how to enable the rest."""
     settings = load_settings(config)
-    credential_map = {
-        "hubspot": "HUBSPOT_ACCESS_TOKEN",
-        "ai_ark": "AI_ARK_API_KEY",
-        "blitz": "BLITZAPI_API_KEY",
-        "lemlist": "LEMLIST_API_KEY",
-        "instantly": "INSTANTLY_API_KEY",
-        "slack": "SLACK_BOT_TOKEN|SLACK_WEBHOOK_URL",
-    }
+    store = _store_status(settings)
     capabilities = {}
     for category, provider in settings.providers.items():
-        names = credential_map.get(provider, "").split("|")
-        ready = any(os.getenv(name, "").strip() for name in names if name)
+        names = [name for name in CREDENTIALS.get(provider, "").split("|") if name]
+        ready = any(os.getenv(name, "").strip() for name in names)
         capabilities[category] = {
             "provider": provider,
-            "ready": ready and has_supabase(),
-            "missing": []
-            if ready and has_supabase()
-            else [
-                *([] if has_supabase() else ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]),
-                *([] if ready else names),
-            ],
+            "ready": ready and store["ready"],
+            "missing": [] if ready else names,
         }
     result = {
+        "version": __version__,
         "config": str(config),
         "config_exists": config.exists(),
         "demo": {"ready": True, "credentials": []},
+        "store": store,
         "supabase": {
             "ready": has_supabase(),
             "migrations_ready": bool(os.getenv("SUPABASE_DB_URL")),
@@ -172,6 +219,21 @@ def doctor(ctx: typer.Context, config: Path = typer.Option(Path("gtm.yaml"))) ->
         "capabilities": capabilities,
     }
     emit(ctx, result, title="Agentic GTM doctor")
+
+
+@app.command("next")
+def next_stage(
+    ctx: typer.Context,
+    config: Path = typer.Option(Path("gtm.yaml")),
+    workspace: Path = typer.Option(Path("."), help="Workspace root."),
+) -> None:
+    """Report which stage is done and which skill to run next."""
+    settings = load_settings(config)
+    try:
+        store: Store | None = open_store(settings, quiet=True)
+    except RuntimeError:
+        store = None
+    emit(ctx, evaluate(workspace, settings, store), title="Next stage")
 
 
 @db_app.command("migrate")
@@ -222,13 +284,13 @@ def sync_crm(ctx: typer.Context, config: Path = typer.Option(Path("gtm.yaml"))) 
         )
         raise typer.Exit(2)
     pulled = adapter.pull(field_map)
-    store = connected_store()
+    store = connected_store(ctx, settings)
     counts = {}
     for table, records in pulled.items():
         body = [record.model_dump(mode="json") for record in records]
         store.upsert(table, body, "provider,provider_id")
         counts[table] = len(body)
-    emit(ctx, {"provider": provider, "synced": counts, "idempotent": True})
+    emit(ctx, {"provider": provider, "store": store.backend, "synced": counts, "idempotent": True})
 
 
 @app.command()
@@ -238,21 +300,38 @@ def source(
     query: Path = typer.Option(..., exists=True, readable=True, help="Provider query JSON."),
     limit: int = typer.Option(25, min=1, max=500),
     config: Path = typer.Option(Path("gtm.yaml")),
+    dry_run: bool = typer.Option(
+        False, help="Validate the query and show the call without running it."
+    ),
 ) -> None:
     """Source accounts or contacts through the explicitly selected provider."""
     if kind not in {"accounts", "contacts"}:
         raise typer.BadParameter("kind must be accounts or contacts")
     settings = load_settings(config)
     provider = configured_provider(settings, "sourcing")
-    adapter = adapter_for(provider)
     filters = json.loads(query.read_text(encoding="utf-8"))
+    if dry_run:
+        emit(
+            ctx,
+            {
+                "status": "dry_run",
+                "provider": provider,
+                "kind": kind,
+                "limit": limit,
+                "filters": filters,
+                "credits": "this call consumes provider credits; approve before running",
+            },
+        )
+        return
+    adapter = adapter_for(provider)
     records = getattr(adapter, f"search_{kind}")(filters, limit=limit)
-    store = connected_store()
+    store = connected_store(ctx, settings)
     store.upsert(kind, [item.model_dump(mode="json") for item in records], "provider,provider_id")
     emit(
         ctx,
         {
             "provider": provider,
+            "store": store.backend,
             "kind": kind,
             "count": len(records),
             "provenance_recorded": True,
@@ -261,13 +340,40 @@ def source(
     )
 
 
+@metrics_app.command("import")
+def metrics_import(
+    ctx: typer.Context,
+    file: Path = typer.Option(..., "--file", exists=True, readable=True, help="Metrics CSV."),
+    provider: str = typer.Option("import", help="Provider label when the CSV has no column."),
+    config: Path = typer.Option(Path("gtm.yaml")),
+) -> None:
+    """Import campaign counts from any tool export or a manual channel log."""
+    rows = parse_metrics_csv(file, default_provider=provider)
+    store = connected_store(ctx, load_settings(config))
+    store.upsert(
+        "campaign_metrics", [row.model_dump(mode="json") for row in rows], METRICS_CONFLICT
+    )
+    summary = summarize(rows)
+    emit(
+        ctx,
+        {
+            "file": str(file),
+            "store": store.backend,
+            "imported": len(rows),
+            "columns": CSV_COLUMNS,
+            "totals": summary["totals"],
+        },
+        title="Metrics imported",
+    )
+
+
 def _campaign_payload(draft: CampaignDraft) -> dict[str, Any]:
     return {
         "desired_state": "paused",
         "campaign": {
             "name": draft.name,
-            "schedule": draft.schedule,
-            "steps": draft.steps,
+            "schedule": draft.schedule.model_dump(mode="json"),
+            "steps": [step.model_dump(mode="json") for step in draft.steps],
         },
     }
 
@@ -276,50 +382,81 @@ def _campaign_payload(draft: CampaignDraft) -> dict[str, Any]:
 def campaign_plan(
     ctx: typer.Context,
     draft_file: Path = typer.Option(..., "--draft", exists=True, readable=True),
+    config: Path = typer.Option(Path("gtm.yaml")),
 ) -> None:
     """Create and persist an immutable plan for a paused campaign."""
     draft = CampaignDraft.model_validate_json(draft_file.read_text(encoding="utf-8"))
+    variants = sum(len(step.all_variants()) for step in draft.steps)
     plan = make_plan(
         "campaign.create_paused",
         draft.provider,
         [str(draft.id)],
         _campaign_payload(draft),
-        f"Create one paused campaign named {draft.name!r}",
+        f"Create one paused campaign named {draft.name!r} with {len(draft.steps)} steps "
+        f"and {variants} variants",
     )
-    persisted = connected_store().create_plan(plan)
-    emit(ctx, persisted, title="Review this plan before applying")
+    store = connected_store(ctx, load_settings(config))
+    persisted = store.create_plan(plan)
+    emit(
+        ctx,
+        {"store": store.backend, "plan": persisted},
+        title="Review this plan before applying",
+    )
 
 
 @campaign_app.command("apply")
 def campaign_apply(
     ctx: typer.Context,
     plan_id: UUID = typer.Option(..., "--plan", help="Explicit action plan UUID."),
+    dry_run: bool = typer.Option(
+        False, help="Validate the plan and show the write without doing it."
+    ),
+    config: Path = typer.Option(Path("gtm.yaml")),
 ) -> None:
     """Apply exactly one reviewed paused-campaign plan."""
-    store = connected_store()
+    store = connected_store(ctx, load_settings(config))
     prior = store.applied_result(plan_id)
     if prior:
-        result = prior.model_copy(
-            update={
-                "status": "already_applied",
-                "message": "Plan was already applied; no duplicate write",
-            }
+        emit(
+            ctx,
+            prior.model_copy(
+                update={
+                    "status": "already_applied",
+                    "message": "Plan was already applied; no duplicate write",
+                }
+            ),
         )
-        emit(ctx, result)
         return
     plan = store.get_plan(plan_id)
     assert_plan_can_apply(plan)
+    if dry_run:
+        emit(
+            ctx,
+            {
+                "status": "dry_run",
+                "provider": plan.provider,
+                "operation": plan.operation,
+                "targets": plan.targets,
+                "payload_summary": plan.payload_summary,
+                "expires_at": plan.expires_at,
+                "hash": plan.hash,
+                "external_writes": 0,
+            },
+            title="Dry run: nothing was written",
+        )
+        return
     result = adapter_for(plan.provider).apply_campaign(plan)
     emit(ctx, store.record_apply(result), title="Campaign apply complete")
 
 
 @sync_app.command("campaigns")
 def sync_campaigns(ctx: typer.Context, config: Path = typer.Option(Path("gtm.yaml"))) -> None:
-    """Pull campaign state from the selected sequencer."""
+    """Pull campaign state, and campaign metrics where the provider supports it."""
     settings = load_settings(config)
     provider = configured_provider(settings, "sequencer")
-    campaigns = adapter_for(provider).pull_campaigns()
-    store = connected_store()
+    adapter = adapter_for(provider)
+    campaigns = adapter.pull_campaigns()
+    store = connected_store(ctx, settings)
     records = [
         {
             "provider": provider,
@@ -331,60 +468,99 @@ def sync_campaigns(ctx: typer.Context, config: Path = typer.Option(Path("gtm.yam
         if item.get("id") or item.get("_id")
     ]
     store.upsert("campaigns", records, "provider,provider_id")
-    emit(ctx, {"provider": provider, "count": len(records), "idempotent": True})
-
-
-def _write_review(kind: str, data: dict[str, Any], output: Path) -> None:
-    lines = [f"# {kind.title()} GTM review", "", f"Generated: {datetime.now(UTC).isoformat()}", ""]
-    lines.extend(["## Approved aggregates", ""])
-    lines.extend(f"- {key.replace('_', ' ').title()}: {value}" for key, value in data.items())
-    lines.extend(
-        [
-            "",
-            "## Interpretation",
-            "",
-            "- Add an evidence-backed interpretation; do not infer causality from an aggregate.",
-            "",
-            "## Owners and next actions",
-            "",
-            "- Assign one human owner and due date to each approved action.",
-        ]
+    metrics_note: str | int
+    try:
+        metrics = adapter.pull_campaign_metrics()
+        store.upsert(
+            "campaign_metrics", [row.model_dump(mode="json") for row in metrics], METRICS_CONFLICT
+        )
+        metrics_note = len(metrics)
+    except CapabilityError as exc:
+        metrics_note = str(exc)
+    emit(
+        ctx,
+        {
+            "provider": provider,
+            "store": store.backend,
+            "count": len(records),
+            "metrics": metrics_note,
+            "idempotent": True,
+        },
     )
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _review(ctx: typer.Context, kind: str, output: Path | None) -> None:
-    store = connected_store()
-    tables = {
-        "outreach": ("campaigns", "metric_snapshots"),
-        "pipeline": ("opportunities", "accounts"),
-        "weekly": ("opportunities", "campaigns", "experiments", "metric_snapshots"),
-    }[kind]
-    aggregates = {
-        f"{table}_records": len(store.select(table, {"limit": "10000"})) for table in tables
-    }
-    destination = output or Path("reports") / f"{kind}-{datetime.now(UTC).date().isoformat()}.md"
-    _write_review(kind, aggregates, destination)
-    emit(ctx, {"kind": kind, "artifact": str(destination), "aggregates": aggregates})
+def _write(destination: Path, text: str) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(text, encoding="utf-8")
 
 
 @review_app.command("outreach")
-def review_outreach(ctx: typer.Context, output: Path | None = typer.Option(None)) -> None:
-    """Review normalized campaign performance."""
-    _review(ctx, "outreach", output)
+def review_outreach(
+    ctx: typer.Context,
+    output: Path | None = typer.Option(None),
+    config: Path = typer.Option(Path("gtm.yaml")),
+) -> None:
+    """Review campaign performance with the KPI hierarchy and certainty tiers."""
+    store = connected_store(ctx, load_settings(config))
+    metrics = _metrics_from_rows(store.select("campaign_metrics", {"limit": "10000"}))
+    summary = summarize(metrics)
+    now = datetime.now(UTC)
+    destination = output or Path("reports") / f"outreach-{now.date().isoformat()}.md"
+    _write(destination, render_outreach_review(summary, now))
+    emit(ctx, {"kind": "outreach", "artifact": str(destination), "rows": len(metrics), **summary})
 
 
 @review_app.command("pipeline")
-def review_pipeline(ctx: typer.Context, output: Path | None = typer.Option(None)) -> None:
+def review_pipeline(
+    ctx: typer.Context,
+    output: Path | None = typer.Option(None),
+    config: Path = typer.Option(Path("gtm.yaml")),
+) -> None:
     """Review won, lost, and open pipeline separately."""
-    _review(ctx, "pipeline", output)
+    store = connected_store(ctx, load_settings(config))
+    opportunities = store.select("opportunities", {"limit": "10000"})
+    summary = summarize_pipeline(opportunities)
+    now = datetime.now(UTC)
+    destination = output or Path("reports") / f"pipeline-{now.date().isoformat()}.md"
+    _write(destination, render_pipeline_review(summary, now))
+    emit(ctx, {"kind": "pipeline", "artifact": str(destination), **summary})
 
 
 @review_app.command("weekly")
-def review_weekly(ctx: typer.Context, output: Path | None = typer.Option(None)) -> None:
+def review_weekly(
+    ctx: typer.Context,
+    output: Path | None = typer.Option(None),
+    config: Path = typer.Option(Path("gtm.yaml")),
+    workspace: Path = typer.Option(Path("."), help="Workspace root."),
+) -> None:
     """Create the weekly cross-system GTM review."""
-    _review(ctx, "weekly", output)
+    store = connected_store(ctx, load_settings(config))
+    metrics = _metrics_from_rows(store.select("campaign_metrics", {"limit": "10000"}))
+    outreach = summarize(metrics)
+    pipeline = summarize_pipeline(store.select("opportunities", {"limit": "10000"}))
+    experiments = [
+        path
+        for path in (workspace / "experiments").glob("*")
+        if path.suffix in {".json", ".md"} and path.name.lower() != "readme.md"
+    ]
+    try:
+        pending = store.describe().get("pending_plans")
+    except Exception:  # noqa: BLE001 - a describe failure must not block the review
+        pending = "unknown"
+    extras = {"experiments": len(experiments), "pending_plans": pending}
+    now = datetime.now(UTC)
+    destination = output or Path("reports") / f"weekly-{now.date().isoformat()}.md"
+    _write(destination, render_weekly_review(outreach, pipeline, extras, now))
+    emit(
+        ctx,
+        {
+            "kind": "weekly",
+            "artifact": str(destination),
+            "outreach_totals": outreach["totals"],
+            "pipeline": pipeline,
+            **extras,
+        },
+    )
 
 
 @slack_app.command("plan")
@@ -392,6 +568,7 @@ def slack_plan(
     ctx: typer.Context,
     report_file: Path = typer.Option(..., "--report", exists=True, readable=True),
     channel: str | None = typer.Option(None, help="Slack channel ID; defaults to env."),
+    config: Path = typer.Option(Path("gtm.yaml")),
 ) -> None:
     """Create an immutable Slack report plan."""
     target = channel or os.getenv("SLACK_CHANNEL_ID", "").strip() or "webhook"
@@ -407,16 +584,25 @@ def slack_plan(
         payload,
         f"Post approved report {report_file.name} to {target}",
     )
-    emit(ctx, connected_store().create_plan(plan), title="Review this Slack plan before applying")
+    store = connected_store(ctx, load_settings(config))
+    emit(
+        ctx,
+        {"store": store.backend, "plan": store.create_plan(plan)},
+        title="Review this Slack plan before applying",
+    )
 
 
 @slack_app.command("apply")
 def slack_apply(
     ctx: typer.Context,
     plan_id: UUID = typer.Option(..., "--plan", help="Explicit action plan UUID."),
+    dry_run: bool = typer.Option(
+        False, help="Validate the plan and show the post without sending."
+    ),
+    config: Path = typer.Option(Path("gtm.yaml")),
 ) -> None:
     """Apply exactly one reviewed Slack report plan."""
-    store = connected_store()
+    store = connected_store(ctx, load_settings(config))
     prior = store.applied_result(plan_id)
     if prior:
         emit(
@@ -431,6 +617,20 @@ def slack_apply(
         return
     plan = store.get_plan(plan_id)
     assert_plan_can_apply(plan)
+    if dry_run:
+        emit(
+            ctx,
+            {
+                "status": "dry_run",
+                "provider": "slack",
+                "targets": plan.targets,
+                "payload_summary": plan.payload_summary,
+                "characters": len(str(plan.payload.get("text", ""))),
+                "external_writes": 0,
+            },
+            title="Dry run: nothing was posted",
+        )
+        return
     result = adapter_for("slack").apply_report(plan)
     emit(ctx, store.record_apply(result), title="Slack apply complete")
 

@@ -1,4 +1,17 @@
-"""lemlist paused-campaign adapter."""
+"""lemlist paused-campaign adapter.
+
+Provider facts this adapter relies on (observed 2026-08, verify against the
+current docs before changing):
+
+- Basic auth with an empty user and the API key as password.
+- Steps live at `POST /sequences/{sequenceId}/steps`, not under campaigns.
+  The email body field is `message`, the step needs a `type`, and delays are
+  expressed as `delay` plus `delayType: "within"`.
+- Step types: `email`, `linkedinInvite`, `linkedinSend`, `manual`.
+- Senders and folders are UI-only; the API accepts them silently.
+- Campaign statistics have no stable public endpoint here; import them from the
+  CSV export with `gtm metrics import`.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +20,34 @@ from typing import Any
 
 from ...config import credential
 from ...contracts import ActionPlan, ApplyResult, CampaignDraft
-from ..base import AdapterError, APIClient, ProviderAdapter
+from ..base import AdapterError, APIClient, CapabilityError, ProviderAdapter
+
+STEP_TYPES = {
+    "email": "email",
+    "linkedin_invite": "linkedinInvite",
+    "linkedin_message": "linkedinSend",
+    "manual": "manual",
+}
+
+
+def lemlist_step(step: dict[str, Any]) -> dict[str, Any]:
+    """Translate one neutral step into the lemlist step payload."""
+    channel = step.get("channel", "email")
+    if channel not in STEP_TYPES:
+        raise AdapterError(f"lemlist does not support channel {channel!r}")
+    variants = step.get("variants") or [
+        {"subject": step.get("subject", ""), "body": step.get("body", "")}
+    ]
+    primary = variants[0]
+    payload: dict[str, Any] = {
+        "type": STEP_TYPES[channel],
+        "delay": int(step.get("day", 0)),
+        "delayType": "within",
+        "message": primary.get("body", ""),
+    }
+    if channel == "email":
+        payload["subject"] = primary.get("subject", "")
+    return payload
 
 
 class LemlistAdapter(ProviderAdapter):
@@ -33,8 +73,8 @@ class LemlistAdapter(ProviderAdapter):
             "desired_state": "paused",
             "campaign": {
                 "name": draft.name,
-                "schedule": draft.schedule,
-                "steps": draft.steps,
+                "schedule": draft.schedule.model_dump(mode="json"),
+                "steps": [step.model_dump(mode="json") for step in draft.steps],
             },
         }
 
@@ -69,7 +109,7 @@ class LemlistAdapter(ProviderAdapter):
         if steps and not sequence_id:
             raise AdapterError("Paused campaign was created, but lemlist returned no sequence ID")
         for step in steps:
-            self.api.request("POST", f"/sequences/{sequence_id}/steps", json=step)
+            self.api.request("POST", f"/sequences/{sequence_id}/steps", json=lemlist_step(step))
         state = self.api.request("GET", f"/campaigns/{provider_id}")
         status = str(
             state.get("state") or state.get("status") or state.get("campaignStatus") or ""
@@ -90,3 +130,9 @@ class LemlistAdapter(ProviderAdapter):
     def pull_campaigns(self) -> list[dict[str, Any]]:
         response = self.api.request("GET", "/campaigns")
         return response if isinstance(response, list) else response.get("campaigns", [])
+
+    def pull_campaign_metrics(self, campaign_ids: list[str] | None = None) -> list[Any]:
+        raise CapabilityError(
+            "lemlist metrics are not pulled by this adapter. Export the campaign report as CSV "
+            "and run `gtm metrics import --file <csv>`."
+        )

@@ -13,3 +13,4 @@ build/
 demo-output/
 *.local.yaml
 .DS_Store
+.release-deny.txt

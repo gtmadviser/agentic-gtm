@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "gtmadviser-agentic-gtm"
-version = "0.1.0"
+version = "0.2.0"
 description = "Deterministic CLI and portable Agent Skills for startup GTM operations"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -40,7 +40,7 @@ dev = [
 gtm = "agentic_gtm.cli.app:main"
 
 [project.urls]
-Homepage = "https://gtmadviser.com/agentic-gtm"
+Homepage = "https://gtmadviser.com"
 Repository = "https://github.com/gtmadviser/agentic-gtm"
 Issues = "https://github.com/gtmadviser/agentic-gtm/issues"
 

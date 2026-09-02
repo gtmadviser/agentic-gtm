@@ -20,7 +20,17 @@ TEXT_SUFFIXES = {
     ".yaml",
     ".yml",
 }
-SKIP = {".git", ".venv", "dist", "build", "__pycache__", ".pytest_cache", ".ruff_cache"}
+SKIP = {
+    ".git",
+    ".venv",
+    "dist",
+    "build",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+    "node_modules",
+}
+SKIP_FILES = {".release-deny.txt"}
 PATTERNS = {
     "private key": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
     "GitHub token": re.compile(r"gh[pousr]_[A-Za-z0-9_]{30,}"),
@@ -41,6 +51,8 @@ def entropy(value: str) -> float:
 def iter_files(root: Path):
     for path in root.rglob("*"):
         if not path.is_file() or any(part in SKIP for part in path.parts):
+            continue
+        if path.name in SKIP_FILES:
             continue
         if path.suffix.lower() in TEXT_SUFFIXES and path.stat().st_size < 2_000_000:
             yield path
