@@ -8,6 +8,10 @@ from typing import Any
 
 import httpx
 
+from .. import __version__
+
+USER_AGENT = f"agentic-gtm/{__version__} (+https://github.com/gtmadviser/agentic-gtm)"
+
 
 class AdapterError(RuntimeError):
     """A provider operation failed without exposing credentials."""
@@ -26,9 +30,11 @@ class APIClient:
         timeout: float = 45,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
+        # Several providers sit behind Cloudflare and reject requests with a
+        # library-default user agent. Always send an explicit one.
         self.client = httpx.Client(
             base_url=base_url.rstrip("/"),
-            headers=headers,
+            headers={"User-Agent": USER_AGENT, **headers},
             timeout=timeout,
             transport=transport,
         )

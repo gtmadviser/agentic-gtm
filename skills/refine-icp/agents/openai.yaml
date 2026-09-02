@@ -1,3 +1,3 @@
 interface:
-  display_name: "Refine Icp"
+  display_name: "Refine ICP"
   short_description: "Refine an evidence-backed ICP and anti-ICP"

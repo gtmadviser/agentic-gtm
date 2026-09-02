@@ -36,8 +36,12 @@ def recommend(required: set[str], category: str | None = None) -> dict[str, Any]
         )
     # Affiliate status is deliberately not referenced by the sort key.
     candidates.sort(key=lambda item: (-item["fit_score"], item["name"].lower()))
-    recommendations = candidates[:3]
+    # A tool that matches none of the requirements is not a recommendation.
+    recommendations = [item for item in candidates if item["fit_score"] > 0][:3]
+    known = sorted({cap for tool in catalog["tools"] for cap in tool["capabilities"]})
     return {
+        "match": bool(recommendations),
+        "known_capabilities": known if not recommendations else None,
         "catalog_version": catalog["version"],
         "requirements": sorted(required),
         "recommendations": recommendations,

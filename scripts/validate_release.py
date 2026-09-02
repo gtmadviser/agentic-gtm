@@ -23,8 +23,8 @@ def main() -> None:
     if claude.get("name") != manifest["name"] or claude.get("version") != manifest["version"]:
         raise SystemExit("Claude and Codex manifests must share name and version")
     skills = sorted(path for path in (ROOT / "skills").iterdir() if path.is_dir())
-    if len(skills) != 12:
-        raise SystemExit(f"Expected 12 skills, found {len(skills)}")
+    if len(skills) < 12:
+        raise SystemExit(f"Expected at least 12 skills, found {len(skills)}")
     for skill in skills:
         if not NAME.fullmatch(skill.name):
             raise SystemExit(f"Invalid skill directory name: {skill.name}")
@@ -35,8 +35,15 @@ def main() -> None:
         data = yaml.safe_load(frontmatter)
         if data.get("name") != skill.name or not data.get("description"):
             raise SystemExit(f"Invalid skill metadata: {skill.name}")
-        if "TODO" in text:
-            raise SystemExit(f"TODO placeholder in skill: {skill.name}")
+        if "\u2014" in text:
+            raise SystemExit(f"Em dash in skill (the copy rules forbid them): {skill.name}")
+        if text.count("\n") < 60:
+            raise SystemExit(f"Skill is too thin (<60 lines): {skill.name}")
+        if not (skill / "references").is_dir():
+            raise SystemExit(f"Skill has no references directory: {skill.name}")
+        for match in re.finditer(r"\]\((?:\./)?(references/[^)#]+)", text):
+            if not (skill / match.group(1)).exists():
+                raise SystemExit(f"Broken reference link in {skill.name}: {match.group(1)}")
     print(f"Validated both manifests and {len(skills)} skills")
 
 

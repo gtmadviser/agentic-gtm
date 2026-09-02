@@ -84,14 +84,44 @@ class Experiment(Contract):
     status: Literal["draft", "approved", "running", "complete"] = "draft"
 
 
+class CampaignVariant(Contract):
+    subject: str = ""
+    body: str = ""
+    hypothesis: str | None = None
+
+
+class CampaignStep(Contract):
+    """One touch in a sequence. `day` is the offset from the previous step."""
+
+    day: int = Field(ge=0)
+    channel: Literal["email", "linkedin_invite", "linkedin_message", "manual"] = "email"
+    subject: str = ""
+    body: str = ""
+    variants: list[CampaignVariant] = Field(default_factory=list)
+
+    def all_variants(self) -> list[CampaignVariant]:
+        if self.variants:
+            return self.variants
+        return [CampaignVariant(subject=self.subject, body=self.body)]
+
+
+class CampaignSchedule(Contract):
+    timezone: str = "Europe/Berlin"
+    start: str = "08:00"
+    end: str = "17:00"
+    days: list[int] = Field(default_factory=lambda: [1, 2, 3, 4, 5])
+    name: str = "Working hours"
+
+
 class CampaignDraft(Contract):
     id: UUID = Field(default_factory=uuid4)
     name: str
     provider: Literal["lemlist", "instantly"]
     audience_query: dict[str, Any]
-    steps: list[dict[str, Any]]
-    schedule: dict[str, Any] = Field(default_factory=dict)
+    steps: list[CampaignStep]
+    schedule: CampaignSchedule = Field(default_factory=CampaignSchedule)
     suppression_lists: list[str] = Field(default_factory=list)
+    experiment_id: UUID | None = None
     status: Literal["draft", "paused"] = "paused"
 
     @model_validator(mode="after")
@@ -113,6 +143,37 @@ class MetricSnapshot(Contract):
     @property
     def rate(self) -> float | None:
         return self.numerator / self.denominator if self.denominator else None
+
+
+class CampaignMetrics(Contract):
+    """Counts for one campaign (and optional variant) in one window.
+
+    Rates are derived, never stored. `sent` is the universal denominator for
+    per-1k metrics; `delivered` (sent minus bounced) is the denominator for
+    reply rates. Imported from any tool export or pulled by an adapter.
+    """
+
+    id: UUID = Field(default_factory=uuid4)
+    provider: str
+    campaign: str
+    variant: str = ""
+    window_start: datetime
+    window_end: datetime
+    sent: int = Field(default=0, ge=0)
+    delivered: int | None = Field(default=None, ge=0)
+    bounced: int = Field(default=0, ge=0)
+    replied: int = Field(default=0, ge=0)
+    positive_replies: int = Field(default=0, ge=0)
+    meetings: int = Field(default=0, ge=0)
+    opportunities: int = Field(default=0, ge=0)
+    source: str = "import"
+    observed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    @property
+    def effective_delivered(self) -> int:
+        if self.delivered is not None:
+            return self.delivered
+        return max(self.sent - self.bounced, 0)
 
 
 class ActionPlan(Contract):

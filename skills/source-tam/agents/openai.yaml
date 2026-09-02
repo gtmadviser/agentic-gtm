@@ -1,0 +1,3 @@
+interface:
+  display_name: "Source TAM"
+  short_description: "Size the market, probe, then source verified accounts and contacts"

@@ -1,7 +1,7 @@
 {
   "name": "agentic-gtm",
-  "version": "0.1.0",
-  "description": "Portable GTM skills backed by a deterministic, approval-gated CLI.",
+  "version": "0.2.0",
+  "description": "Fifteen GTM skills with playbooks, backed by a deterministic, approval-gated CLI.",
   "author": {
     "name": "GTM Adviser",
     "url": "https://gtmadviser.com"

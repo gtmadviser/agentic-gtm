@@ -70,7 +70,7 @@ uv run gtm doctor
 
 Git stores company context, decisions, experiment definitions, approved aggregates, and playbooks. Your Supabase project stores contacts, opportunities, activities, raw provider data, cursors, IDs, and approval records. `.gtm/` is ignored local cache.
 
-- Want this adapted to your company? [Agentic GTM by GTM Adviser](https://gtmadviser.com/agentic-gtm)
+- Want this adapted to your company? [GTM Adviser](https://gtmadviser.com)
 - Want someone to operate it for you? [gtmengine.io](https://gtmengine.io)
 
 Code and schemas are MIT licensed. Generated skills and written frameworks are CC BY 4.0.
