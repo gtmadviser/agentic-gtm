@@ -38,6 +38,8 @@ def lemlist_step(step: dict[str, Any]) -> dict[str, Any]:
     variants = step.get("variants") or [
         {"subject": step.get("subject", ""), "body": step.get("body", "")}
     ]
+    if len(variants) != 1:
+        raise CapabilityError("This lemlist adapter supports one variant per step; use a reviewed manual import for A/B variants")
     primary = variants[0]
     payload: dict[str, Any] = {
         "type": STEP_TYPES[channel],
@@ -84,6 +86,8 @@ class LemlistAdapter(ProviderAdapter):
         if plan.payload.get("desired_state") != "paused":
             raise AdapterError("refusing campaign payload that is not paused")
         campaign = plan.payload.get("campaign") or {}
+        steps = campaign.get("steps") or []
+        translated = [lemlist_step(step) for step in steps]
         create_payload = {"name": campaign.get("name")}
         timezone = (campaign.get("schedule") or {}).get("timezone")
         if timezone:
@@ -108,8 +112,8 @@ class LemlistAdapter(ProviderAdapter):
         steps = campaign.get("steps") or []
         if steps and not sequence_id:
             raise AdapterError("Paused campaign was created, but lemlist returned no sequence ID")
-        for step in steps:
-            self.api.request("POST", f"/sequences/{sequence_id}/steps", json=lemlist_step(step))
+        for step in translated:
+            self.api.request("POST", f"/sequences/{sequence_id}/steps", json=step)
         state = self.api.request("GET", f"/campaigns/{provider_id}")
         status = str(
             state.get("state") or state.get("status") or state.get("campaignStatus") or ""
@@ -123,8 +127,8 @@ class LemlistAdapter(ProviderAdapter):
             provider=self.name,
             status="applied",
             provider_ids=[provider_id],
-            verified=True,
-            message=f"Created empty shell, paused it, added {len(steps)} steps, and verified {status}",
+            verified=False,
+            message=f"Created {len(steps)} steps; {status} status verified. Days/hours, sender, content and LinkedIn conditions require manual configuration and review.",
         )
 
     def pull_campaigns(self) -> list[dict[str, Any]]:

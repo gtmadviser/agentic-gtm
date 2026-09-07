@@ -20,6 +20,9 @@ from ..contracts import CampaignMetrics
 CSV_COLUMNS = [
     "provider",
     "campaign",
+    "campaign_id",
+    "kind",
+    "unit",
     "variant",
     "window_start",
     "window_end",
@@ -66,9 +69,9 @@ def parse_metrics_csv(path: Path, default_provider: str = "import") -> list[Camp
             raise ValueError(f"metrics CSV is missing required columns: {', '.join(missing)}")
         for line_number, raw in enumerate(reader, start=2):
 
-            def number(key: str, row: dict[str, str] = raw) -> int:
+            def number(key: str, row: dict[str, str] = raw) -> int | None:
                 value = (row.get(key) or "").strip()
-                return int(float(value)) if value else 0
+                return int(value) if value else (0 if key == "bounced" else None)
 
             delivered_raw = (raw.get("delivered") or "").strip()
             try:
@@ -76,11 +79,14 @@ def parse_metrics_csv(path: Path, default_provider: str = "import") -> list[Camp
                     CampaignMetrics(
                         provider=(raw.get("provider") or default_provider).strip(),
                         campaign=raw["campaign"].strip(),
+                        campaign_id=raw.get("campaign_id") or raw["campaign"].strip(),
+                        kind=raw.get("kind") or "interval",
+                        unit=raw.get("unit") or "email",
                         variant=(raw.get("variant") or "").strip(),
                         window_start=_parse_datetime(raw.get("window_start") or ""),
                         window_end=_parse_datetime(raw.get("window_end") or ""),
                         sent=number("sent"),
-                        delivered=int(float(delivered_raw)) if delivered_raw else None,
+                        delivered=int(delivered_raw) if delivered_raw else None,
                         bounced=number("bounced"),
                         replied=number("replied"),
                         positive_replies=number("positive_replies"),
@@ -104,10 +110,10 @@ def rates(
     opportunities: int,
 ) -> dict[str, float | None]:
     def ratio(numerator: int, denominator: int) -> float | None:
-        return round(numerator / denominator, 4) if denominator else None
+        return round(numerator / denominator, 4) if denominator and numerator is not None else None
 
     def per_1k(numerator: int) -> float | None:
-        return round(numerator / sent * 1000, 2) if sent else None
+        return round(numerator / sent * 1000, 2) if sent and numerator is not None else None
 
     return {
         "bounce_rate": ratio(bounced, sent),
@@ -120,24 +126,55 @@ def rates(
 
 
 def summarize(metrics: list[CampaignMetrics]) -> dict[str, Any]:
-    groups: dict[tuple[str, str, str], dict[str, int]] = defaultdict(
-        lambda: dict(sent=0, delivered=0, bounced=0, replied=0, positive=0, meetings=0, opps=0)
-    )
+    series = defaultdict(list)
+    units = {row.unit for row in metrics}
+    if len(units) > 1:
+        raise ValueError("Metric units differ; review email, contact and account counts separately")
     for row in metrics:
-        bucket = groups[(row.provider, row.campaign, row.variant)]
-        bucket["sent"] += row.sent
-        bucket["delivered"] += row.effective_delivered
-        bucket["bounced"] += row.bounced
-        bucket["replied"] += row.replied
-        bucket["positive"] += row.positive_replies
-        bucket["meetings"] += row.meetings
-        bucket["opps"] += row.opportunities
+        series[(row.provider, row.campaign_id, row.variant)].append(row)
+    groups, names = {}, {}
+    for key, observations in series.items():
+        kinds = {row.kind for row in observations}
+        if len(kinds) != 1:
+            raise ValueError("Do not mix lifetime snapshots and intervals for the same campaign")
+        observations.sort(key=lambda row: (row.window_end, row.observed_at))
+        names[key] = observations[-1].campaign
+        if observations[-1].kind == "cumulative":
+            # A second sync is a newer observation, never additional sends.
+            observations = observations[-1:]
+        else:
+            observations.sort(key=lambda row: row.window_start)
+            for previous, current in zip(observations, observations[1:], strict=False):
+                if current.window_start < previous.window_end:
+                    raise ValueError("Metric intervals overlap; use disjoint half-open windows")
+        bucket = dict(sent=0, delivered=0, bounced=0, replied=0, positive=0, meetings=0, opps=0)
+        for row in observations:
+            for field, value in {
+                "sent": row.sent,
+                "delivered": row.effective_delivered,
+                "bounced": row.bounced,
+                "replied": row.replied,
+                "positive": row.positive_replies,
+                "meetings": row.meetings,
+                "opps": row.opportunities,
+            }.items():
+                bucket[field] = (
+                    bucket[field] + value
+                    if bucket[field] is not None and value is not None
+                    else None
+                )
+        groups[key] = bucket
 
     rows = []
     totals = dict(sent=0, delivered=0, bounced=0, replied=0, positive=0, meetings=0, opps=0)
-    for (provider, campaign, variant), bucket in sorted(groups.items()):
+    for (provider, campaign_id, variant), bucket in sorted(groups.items()):
+        campaign = names[(provider, campaign_id, variant)]
         for key in totals:
-            totals[key] += bucket[key]
+            totals[key] = (
+                totals[key] + bucket[key]
+                if totals[key] is not None and bucket[key] is not None
+                else None
+            )
         computed = rates(
             bucket["sent"],
             bucket["delivered"],
@@ -152,6 +189,7 @@ def summarize(metrics: list[CampaignMetrics]) -> dict[str, Any]:
             flags.append("bounce_above_2pct_pause")
         if (
             bucket["sent"] >= 500
+            and bucket["replied"] is not None
             and bucket["replied"] >= 20
             and bucket["opps"] == 0
             and bucket["meetings"] == 0
@@ -166,6 +204,7 @@ def summarize(metrics: list[CampaignMetrics]) -> dict[str, Any]:
             {
                 "provider": provider,
                 "campaign": campaign,
+                "campaign_id": campaign_id,
                 "variant": variant,
                 **bucket,
                 **computed,
@@ -183,7 +222,12 @@ def summarize(metrics: list[CampaignMetrics]) -> dict[str, Any]:
         totals["opps"],
     )
     ranked = sorted(
-        (row for row in rows if row["certainty"] != "too_early"),
+        (
+            row
+            for row in rows
+            if row["certainty"] != "too_early"
+            and all(row[field] is not None for field in ("opps", "meetings", "positive"))
+        ),
         key=lambda row: (
             -(row["opportunities_per_1k_sent"] or 0),
             -(row["meetings_per_1k_sent"] or 0),
@@ -191,6 +235,8 @@ def summarize(metrics: list[CampaignMetrics]) -> dict[str, Any]:
         ),
     )
     return {
+        "scope": "Latest lifetime snapshot per cumulative series; all non-overlapping imported intervals",
+        "unit": next(iter(units), "email"),
         "campaigns": rows,
         "totals": {**totals, **total_rates, "certainty": certainty(totals["sent"])},
         "ranking": [
@@ -223,7 +269,9 @@ def render_outreach_review(summary: dict[str, Any], generated: datetime) -> str:
         "",
         "## Totals",
         "",
-        f"- Sent: {totals['sent']} (certainty: {totals['certainty']})",
+        f"- Sent: {totals['sent']} (sample size tier: {totals['certainty']})",
+        f"- Scope: {summary.get('scope', 'Imported windows')}; unit: {summary.get('unit', 'email')}",
+        "- Sample size tiers are heuristics, not statistical confidence or permission to scale.",
         f"- Bounce rate: {_pct(totals['bounce_rate'])}",
         f"- Reply rate (of delivered): {_pct(totals['reply_rate'])}",
         f"- Positive reply rate (of delivered): {_pct(totals['positive_reply_rate'])}",
@@ -253,7 +301,9 @@ def render_outreach_review(summary: dict[str, Any], generated: datetime) -> str:
     )
     lines.extend(f"{index}. {name}" for index, name in enumerate(summary["ranking"], start=1))
     if not summary["ranking"]:
-        lines.append("- No campaign has reached 200 sends yet. Do not draw conclusions.")
+        lines.append(
+            "- No campaign has both 200 sends and complete outcome counts. Do not rank missing data."
+        )
     lines.extend(
         [
             "",
@@ -336,7 +386,10 @@ def render_weekly_review(
         "",
         f"Generated: {generated.isoformat()}",
         "",
-        "## What changed",
+        "## Current snapshot",
+        "",
+        "This is a review prepared this week, not a measured week-over-week delta.",
+        f"Scope: {outreach.get('scope', 'Imported windows')}",
         "",
         f"- Outreach sent in scope: {totals['sent']} (certainty: {totals['certainty']})",
         f"- Positive replies per 1k sent: {_num(totals['positive_per_1k_sent'])}",

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from datetime import UTC, datetime
 from importlib.resources import files
 from pathlib import Path
@@ -18,7 +17,7 @@ from .. import __version__
 from ..adapters import adapter_for
 from ..adapters.base import CapabilityError
 from ..catalog import recommend
-from ..config import Settings, has_supabase, load_settings
+from ..config import Settings, env_value, has_supabase, load_settings
 from ..contracts import CampaignDraft, CampaignMetrics
 from ..database import Store, open_store
 from ..safety import assert_plan_can_apply, make_plan, redact
@@ -66,7 +65,7 @@ CREDENTIALS = {
     "instantly": "INSTANTLY_API_KEY",
     "slack": "SLACK_BOT_TOKEN|SLACK_WEBHOOK_URL",
 }
-METRICS_CONFLICT = "provider,campaign,variant,window_start,window_end"
+METRICS_CONFLICT = "provider,campaign_id,variant,kind,unit,window_start,window_end"
 
 
 def _json_default(value: Any) -> Any:
@@ -130,13 +129,22 @@ def _store_status(settings: Settings) -> dict[str, Any]:
 def _metrics_from_rows(rows: list[dict[str, Any]]) -> list[CampaignMetrics]:
     allowed = set(CampaignMetrics.model_fields)
     result = []
-    for row in rows:
-        try:
-            result.append(
-                CampaignMetrics.model_validate({k: v for k, v in row.items() if k in allowed})
+    for index, row in enumerate(rows, start=1):
+        data = {k: v for k, v in row.items() if k in allowed}
+        # Legacy CSV stores encoded a blank variant as null.
+        data["variant"] = data.get("variant") or ""
+        if data.get("source") == "instantly.analytics.legacy" or (
+            data.get("source") == "instantly.analytics" and not data.get("kind")
+        ):
+            raise ValueError(
+                "Legacy Instantly snapshots have no reliable campaign ID or reply semantics; archive those rows and resync before reviewing"
             )
-        except ValueError:
-            continue
+        try:
+            result.append(CampaignMetrics.model_validate(data))
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid stored campaign metric at row {index}; repair it before reviewing"
+            ) from exc
     return result
 
 
@@ -200,7 +208,7 @@ def doctor(ctx: typer.Context, config: Path = typer.Option(Path("gtm.yaml"))) ->
     capabilities = {}
     for category, provider in settings.providers.items():
         names = [name for name in CREDENTIALS.get(provider, "").split("|") if name]
-        ready = any(os.getenv(name, "").strip() for name in names)
+        ready = any(env_value(name, "").strip() for name in names)
         capabilities[category] = {
             "provider": provider,
             "ready": ready and store["ready"],
@@ -209,12 +217,12 @@ def doctor(ctx: typer.Context, config: Path = typer.Option(Path("gtm.yaml"))) ->
     result = {
         "version": __version__,
         "config": str(config),
-        "config_exists": config.exists(),
+        "config_exists": (settings.workspace_root / "gtm.yaml").exists(),
         "demo": {"ready": True, "credentials": []},
         "store": store,
         "supabase": {
             "ready": has_supabase(),
-            "migrations_ready": bool(os.getenv("SUPABASE_DB_URL")),
+            "migrations_ready": bool(env_value("SUPABASE_DB_URL")),
         },
         "capabilities": capabilities,
     }
@@ -233,7 +241,11 @@ def next_stage(
         store: Store | None = open_store(settings, quiet=True)
     except RuntimeError:
         store = None
-    emit(ctx, evaluate(workspace, settings, store), title="Next stage")
+    emit(
+        ctx,
+        evaluate(settings.workspace_root if workspace == Path(".") else workspace, settings, store),
+        title="Next stage",
+    )
 
 
 @db_app.command("migrate")
@@ -247,7 +259,8 @@ def db_migrate(
     if dry_run:
         emit(ctx, {"migrations": [item.name for item in migrations], "applied": False})
         return
-    db_url = os.getenv("SUPABASE_DB_URL", "").strip()
+    load_settings()
+    db_url = env_value("SUPABASE_DB_URL", "").strip()
     if not db_url:
         raise RuntimeError("SUPABASE_DB_URL is required only for gtm db migrate")
     try:
@@ -271,7 +284,7 @@ def sync_crm(ctx: typer.Context, config: Path = typer.Option(Path("gtm.yaml"))) 
     field_map = settings.field_maps.get(provider) or {}
     if not field_map:
         inspection = adapter.inspect()
-        output = Path(".gtm") / f"{provider}-inspection.json"
+        output = settings.resolve(Path(".gtm") / f"{provider}-inspection.json")
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(inspection, indent=2, default=_json_default), encoding="utf-8")
         emit(
@@ -349,11 +362,12 @@ def metrics_import(
 ) -> None:
     """Import campaign counts from any tool export or a manual channel log."""
     rows = parse_metrics_csv(file, default_provider=provider)
-    store = connected_store(ctx, load_settings(config))
+    settings = load_settings(config)
+    store = connected_store(ctx, settings)
+    summary = summarize(rows)  # Reject an invalid import before persisting its rows.
     store.upsert(
         "campaign_metrics", [row.model_dump(mode="json") for row in rows], METRICS_CONFLICT
     )
-    summary = summarize(rows)
     emit(
         ctx,
         {
@@ -368,6 +382,18 @@ def metrics_import(
 
 
 def _campaign_payload(draft: CampaignDraft) -> dict[str, Any]:
+    # Pure preflight: reject unsupported content before persisting an apply plan.
+    from ..adapters.instantly.adapter import instantly_steps
+    from ..adapters.lemlist.adapter import lemlist_step
+
+    steps = [step.model_dump(mode="json") for step in draft.steps]
+    if draft.provider == "instantly":
+        instantly_steps(steps)
+    elif draft.provider == "lemlist":
+        for step in steps:
+            lemlist_step(step)
+    else:
+        raise ValueError("No paused-campaign adapter for this provider")
     return {
         "desired_state": "paused",
         "campaign": {
@@ -395,7 +421,8 @@ def campaign_plan(
         f"Create one paused campaign named {draft.name!r} with {len(draft.steps)} steps "
         f"and {variants} variants",
     )
-    store = connected_store(ctx, load_settings(config))
+    settings = load_settings(config)
+    store = connected_store(ctx, settings)
     persisted = store.create_plan(plan)
     emit(
         ctx,
@@ -414,7 +441,8 @@ def campaign_apply(
     config: Path = typer.Option(Path("gtm.yaml")),
 ) -> None:
     """Apply exactly one reviewed paused-campaign plan."""
-    store = connected_store(ctx, load_settings(config))
+    settings = load_settings(config)
+    store = connected_store(ctx, settings)
     prior = store.applied_result(plan_id)
     if prior:
         emit(
@@ -445,7 +473,12 @@ def campaign_apply(
             title="Dry run: nothing was written",
         )
         return
-    result = adapter_for(plan.provider).apply_campaign(plan)
+    plan = store.claim_apply(plan_id)
+    try:
+        result = adapter_for(plan.provider).apply_campaign(plan)
+    except Exception:
+        store.mark_needs_review(plan_id)
+        raise
     emit(ctx, store.record_apply(result), title="Campaign apply complete")
 
 
@@ -501,11 +534,14 @@ def review_outreach(
     config: Path = typer.Option(Path("gtm.yaml")),
 ) -> None:
     """Review campaign performance with the KPI hierarchy and certainty tiers."""
-    store = connected_store(ctx, load_settings(config))
+    settings = load_settings(config)
+    store = connected_store(ctx, settings)
     metrics = _metrics_from_rows(store.select("campaign_metrics", {"limit": "10000"}))
     summary = summarize(metrics)
     now = datetime.now(UTC)
-    destination = output or Path("reports") / f"outreach-{now.date().isoformat()}.md"
+    destination = settings.resolve(
+        output or Path("reports") / f"outreach-{now.date().isoformat()}.md"
+    )
     _write(destination, render_outreach_review(summary, now))
     emit(ctx, {"kind": "outreach", "artifact": str(destination), "rows": len(metrics), **summary})
 
@@ -517,11 +553,14 @@ def review_pipeline(
     config: Path = typer.Option(Path("gtm.yaml")),
 ) -> None:
     """Review won, lost, and open pipeline separately."""
-    store = connected_store(ctx, load_settings(config))
+    settings = load_settings(config)
+    store = connected_store(ctx, settings)
     opportunities = store.select("opportunities", {"limit": "10000"})
     summary = summarize_pipeline(opportunities)
     now = datetime.now(UTC)
-    destination = output or Path("reports") / f"pipeline-{now.date().isoformat()}.md"
+    destination = settings.resolve(
+        output or Path("reports") / f"pipeline-{now.date().isoformat()}.md"
+    )
     _write(destination, render_pipeline_review(summary, now))
     emit(ctx, {"kind": "pipeline", "artifact": str(destination), **summary})
 
@@ -534,10 +573,12 @@ def review_weekly(
     workspace: Path = typer.Option(Path("."), help="Workspace root."),
 ) -> None:
     """Create the weekly cross-system GTM review."""
-    store = connected_store(ctx, load_settings(config))
+    settings = load_settings(config)
+    store = connected_store(ctx, settings)
     metrics = _metrics_from_rows(store.select("campaign_metrics", {"limit": "10000"}))
     outreach = summarize(metrics)
     pipeline = summarize_pipeline(store.select("opportunities", {"limit": "10000"}))
+    workspace = settings.workspace_root if workspace == Path(".") else workspace
     experiments = [
         path
         for path in (workspace / "experiments").glob("*")
@@ -549,7 +590,9 @@ def review_weekly(
         pending = "unknown"
     extras = {"experiments": len(experiments), "pending_plans": pending}
     now = datetime.now(UTC)
-    destination = output or Path("reports") / f"weekly-{now.date().isoformat()}.md"
+    destination = settings.resolve(
+        output or Path("reports") / f"weekly-{now.date().isoformat()}.md"
+    )
     _write(destination, render_weekly_review(outreach, pipeline, extras, now))
     emit(
         ctx,
@@ -571,7 +614,8 @@ def slack_plan(
     config: Path = typer.Option(Path("gtm.yaml")),
 ) -> None:
     """Create an immutable Slack report plan."""
-    target = channel or os.getenv("SLACK_CHANNEL_ID", "").strip() or "webhook"
+    settings = load_settings(config)
+    target = channel or env_value("SLACK_CHANNEL_ID", "").strip() or "webhook"
     payload = {
         "channel": target,
         "text": report_file.read_text(encoding="utf-8"),
@@ -584,7 +628,8 @@ def slack_plan(
         payload,
         f"Post approved report {report_file.name} to {target}",
     )
-    store = connected_store(ctx, load_settings(config))
+    settings = load_settings(config)
+    store = connected_store(ctx, settings)
     emit(
         ctx,
         {"store": store.backend, "plan": store.create_plan(plan)},
@@ -602,7 +647,8 @@ def slack_apply(
     config: Path = typer.Option(Path("gtm.yaml")),
 ) -> None:
     """Apply exactly one reviewed Slack report plan."""
-    store = connected_store(ctx, load_settings(config))
+    settings = load_settings(config)
+    store = connected_store(ctx, settings)
     prior = store.applied_result(plan_id)
     if prior:
         emit(
@@ -631,7 +677,14 @@ def slack_apply(
             title="Dry run: nothing was posted",
         )
         return
-    result = adapter_for("slack").apply_report(plan)
+    if plan.provider != "slack" or plan.operation != "slack.post_report":
+        raise ValueError("This plan does not authorize a Slack report")
+    plan = store.claim_apply(plan_id)
+    try:
+        result = adapter_for("slack").apply_report(plan)
+    except Exception:
+        store.mark_needs_review(plan_id)
+        raise
     emit(ctx, store.record_apply(result), title="Slack apply complete")
 
 

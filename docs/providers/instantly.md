@@ -19,7 +19,7 @@ Use the key exactly as issued. Do not decode or re-encode it. Do not send worksp
 
 ## Rate limits and retries
 
-Rapid sequential calls return 429. Sleep 120 to 150 ms between requests and chunk batch operations in groups of about 100. Retry on 429 and 5xx with exponential backoff capped at a few seconds. The `gtm` HTTP client does this for every adapter.
+Rapid sequential calls return 429. Sleep 120 to 150 ms between requests and chunk batch operations in groups of about 100. Safe reads retry 429 and 5xx with bounded backoff. Mutations are attempted once, then reconciled before any further write.
 
 ## Pagination
 
@@ -122,3 +122,5 @@ Compute reply rate as `(reply_count + reply_count_automatic) / new_leads_contact
 ## Verify before coding
 
 Fetch the endpoint page on https://developer.instantly.ai/ before adding a call. Check the required fields, the status vocabulary, and whether the response wraps results in `items`. Add new gotchas to the table with the date you saw them.
+
+HTTP retry policy: automatic retries are limited to safe reads. Mutations are attempted once; ambiguous outcomes require provider reconciliation before another write. See [reliability upgrade notes](../reliability-upgrade.md).

@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+- Add `linkedin-engager-outreach`: Harvest post collection, local identity/event
+  dedupe, evidence-based ICP scoring, account/contact CRM routing and reviewed
+  LinkedIn outreach handoff. Includes a bounded, cached collection helper and
+  synthetic regression tests. No client data or live sending is bundled.
+- Resolve workspace `.env`, local stores and generated reports relative to the
+  selected configuration; prevent credential leakage between loaded workspaces.
+- Preserve empty strings/nulls and existing record IDs in local CSV upserts;
+  serialize file writes, expose JSON apply results to readiness checks, and
+  count pending plans accurately. Generate stable IDs for new provider records.
+- Claim plans before campaign/Slack writes and block automatic replay after
+  failures. Mutating HTTP requests are no longer retried implicitly.
+- Distinguish lifetime metric snapshots from interval counts, group by campaign
+  ID, reject overlapping windows/mixed units and preserve unknown outcomes.
+  Instantly human replies use the unique field; opportunities are not relabeled
+  positive replies. Weekly reports state their actual snapshot scope.
+- Reject unsupported lemlist variants before writes; expose manual schedule and
+  content verification requirements. Fix the copy-to-draft skill handoff.
+- Include canonical skills/helpers in installed wheels and initialized
+  workspaces; copy all migrations into generated starters.
+- Add migration `0003_reliability.sql`. See [upgrade notes](docs/reliability-upgrade.md).
+
 ## 0.2.0 (2026-09-02)
 
 The playbook release. The 0.1.0 skills were policy statements; 0.2.0 fills them with the rules, numbers, checklists and references from real outbound engagements, and makes the CLI usable without a database.

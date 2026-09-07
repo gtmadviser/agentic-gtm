@@ -102,6 +102,7 @@ class InstantlyAdapter(ProviderAdapter):
         if plan.payload.get("desired_state") != "paused":
             raise AdapterError("refusing campaign payload that is not draft/paused")
         campaign = plan.payload.get("campaign") or {}
+        steps = instantly_steps(campaign.get("steps") or [])
         create_body = {
             "name": campaign.get("name"),
             "campaign_schedule": instantly_schedule(campaign.get("schedule") or {}),
@@ -123,7 +124,6 @@ class InstantlyAdapter(ProviderAdapter):
                 f"Created empty Instantly campaign {provider_id}, but pause was not verified. "
                 "No sequence content or contacts were added."
             )
-        steps = instantly_steps(campaign.get("steps") or [])
         if steps:
             self.api.request(
                 "PATCH", f"/campaigns/{provider_id}", json={"sequences": [{"steps": steps}]}
@@ -167,15 +167,17 @@ class InstantlyAdapter(ProviderAdapter):
                 CampaignMetrics(
                     provider=self.name,
                     campaign=row.get("campaign_name") or campaign_id,
+                    campaign_id=campaign_id,
+                    kind="cumulative",
                     variant="",
                     window_start=datetime.fromtimestamp(0, UTC),
                     window_end=now,
                     sent=sent,
                     delivered=max(sent - bounced, 0),
                     bounced=bounced,
-                    replied=int(row.get("reply_count") or 0),
-                    positive_replies=int(row.get("total_opportunities") or 0),
-                    opportunities=int(row.get("total_opportunities") or 0),
+                    replied=int(row["reply_count_unique"]) if row.get("reply_count_unique") is not None else None,
+                    positive_replies=None,
+                    opportunities=int(row["total_opportunities"]) if row.get("total_opportunities") is not None else None,
                     source="instantly.analytics",
                 )
             )

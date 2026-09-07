@@ -2,7 +2,7 @@
 
 > **Public alpha (`0.2.0`)**. Skills and the synthetic demo are ready to use. Connected provider workflows need live-test credentials before a `1.0` release.
 
-An open, local-first GTM operating system for technical founders and first GTM hires. Fifteen portable Agent Skills carry the playbooks from real outbound engagements: copy rules, deliverability thresholds, experiment design, the KPI hierarchy, handover. A deterministic `gtm` CLI reads your tools, keeps operational data in infrastructure you own, writes reviewable Markdown and JSON artifacts, and requires explicit approval before any external write.
+An open, local-first GTM operating system for technical founders and first GTM hires. Sixteen portable Agent Skills carry the playbooks from real outbound engagements: copy rules, deliverability thresholds, experiment design, the KPI hierarchy, handover. A deterministic `gtm` CLI reads your tools, keeps operational data in infrastructure you own, writes reviewable Markdown and JSON artifacts, and requires explicit approval before any external write.
 
 ```text
 Agent Skill (skills/<name>/SKILL.md + references/)
@@ -48,6 +48,7 @@ Without those two variables the CLI keeps CSV tables and JSON plans under `.gtm/
 | crm | `inspect-crm` | field-map confirmation, won/lost/open analysis |
 | experiment | `design-gtm-experiment` | preregistration template, sample sizes, hypothesis register, learnings log |
 | audience | `source-tam` | sourcing waterfall, signal schema, mandatory filters, suppression, credit approval, vendor evaluation |
+| audience / reach | `linkedin-engager-outreach` | Harvest post collection, identity dedupe, evidence-based ICP scoring, CRM routing and LinkedIn handoff |
 | audience | `research-accounts` | signal playbooks, personalization tiers, context-variable pattern |
 | copy | `write-outreach` | copy rules, subject lines, follow-ups, variables and spintax, DACH pack, anti-slop gate and eval, review rubric |
 | reach | `stage-campaign` | campaign structure, pre-launch checklist, draft schema, plan then apply |
@@ -57,7 +58,7 @@ Without those two variables the CLI keeps CSV tables and JSON plans under `.gtm/
 | deals | `advance-deals` | meeting prep, follow-up, evidence-gap questions |
 | handover | `handover-gtm-engine` | operator routine, acceptance checklist, handoff and wrap-up templates, hard rules for agents |
 
-Every skill has a numbered procedure, hard rules with numbers, a checklist, an output contract, failure modes, and reference files. Use the repository as a Claude Code or Codex plugin, or point any shell-capable agent at `skills/` and the installed `gtm` command.
+Skills include procedures, checks, output contracts and references. Company-specific thresholds come from the approved ICP and experiment. Use the repository as a Claude Code or Codex plugin, or point any shell-capable agent at `skills/` and the installed `gtm` command.
 
 ## Commands
 
@@ -79,16 +80,16 @@ gtm report slack apply --plan <plan-id> [--dry-run]
 gtm stack recommend --require <capability>
 ```
 
-Add global `--json` before the command for stable machine-readable output. `gtm review` computes bounce rate, reply rate, positive reply rate, and positive replies, meetings and opportunities per 1k sent, with a certainty tier by sends and flags for bounce above 2% and the reply-vanity trap.
+Add global `--json` before the command for stable machine-readable output. `gtm review` computes bounce rate, reply rate, positive reply rate, and positive replies, meetings and opportunities per 1k sent, with a sample-size heuristic by sends (not statistical confidence) and flags for bounce above 2% and the reply-vanity trap.
 
 ## Safety contract
 
-- Reads run only inside the scopes declared in `gtm.yaml`.
+- Operators and skills must honor the scopes declared in `gtm.yaml`; the current adapters do not yet enforce every provider scope automatically.
 - External writes first create an immutable action plan with exact targets, a payload summary, an idempotency key, and a SHA-256 hash.
 - Apply commands require an explicit plan ID, support `--dry-run`, and reject changed, expired, or already-applied plans.
 - Sequencer adapters only create paused campaigns. There is no send or activate command.
 - Because both sequencer APIs may return a new empty shell as running, adapters pause the shell before adding any sequence content. They never add contacts. A failed pause aborts and reports the empty shell ID.
-- Every credit-consuming call is shown as a plan first.
+- Skills require a reviewed budget before paid sourcing. The Harvest helper enforces an explicit post/request plan; AI Ark and Blitz CLI sourcing still require the operator to review the dry run and budget before execution.
 - `gtm init` installs a pre-commit secret guard that blocks `.env` values, credential literals and spreadsheets, and a Claude Code Stop hook that flags uncommitted work.
 - Secrets are read from environment variables, never CLI flags.
 
@@ -116,3 +117,12 @@ The free system is fully functional.
 
 - Want this adapted to your company? [GTM Adviser](https://gtmadviser.com)
 - Want someone to operate it for you? [gtmengine.io](https://gtmengine.io)
+
+### LinkedIn post engagers
+
+Use [`linkedin-engager-outreach`](skills/linkedin-engager-outreach/SKILL.md) for
+Harvest post reactions/comments → deduplicated people → ICP scoring → CRM
+ownership and suppression checks → reviewed LinkedIn outreach. The included
+helper supports bounded paid collection and offline normalization. Raw lists and
+comments stay under `.gtm/linkedin-engagement/`; no client data is bundled.
+See the [workflow guide](docs/linkedin-engager-outreach.md).

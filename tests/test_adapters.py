@@ -101,7 +101,8 @@ def test_lemlist_apply_creates_and_verifies_paused_campaign() -> None:
         "Create paused campaign",
     )
     result = adapter.apply_campaign(plan)
-    assert result.verified is True
+    assert result.verified is False
+    assert "manual configuration" in result.message
     assert result.provider_ids == ["campaign-1"]
     assert events == [
         ("POST", "/api/campaigns"),

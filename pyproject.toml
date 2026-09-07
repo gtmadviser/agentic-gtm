@@ -19,6 +19,7 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
+  "filelock>=3.16,<4",
   "httpx>=0.27,<1",
   "pydantic>=2.9,<3",
   "python-dotenv>=1.0,<2",
@@ -46,6 +47,12 @@ Issues = "https://github.com/gtmadviser/agentic-gtm/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentic_gtm"]
+
+[tool.hatch.build.hooks.custom]
+path = "scripts/build_hook.py"
+
+[tool.hatch.build]
+exclude = ["**/* 2.*", "**/__pycache__/**", "**/*.pyc"]
 
 [tool.pytest.ini_options]
 addopts = "-q"

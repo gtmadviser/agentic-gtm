@@ -32,7 +32,7 @@ def open_store(settings: Settings | None = None, *, quiet: bool = False) -> Stor
             "SUPABASE_SERVICE_ROLE_KEY to .env, or set policies."
             "require_supabase_for_connected_workflows: false to use the files store."
         )
-    store = FileStore(settings.store.path)
+    store = FileStore(settings.resolve(settings.store.path))
     if backend == "auto" and not quiet:
         print(
             f"store: files ({store.root}); Supabase credentials not found, using CSV tables",

@@ -6,7 +6,8 @@ import hashlib
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
@@ -22,6 +23,17 @@ class ProviderRecord(Contract):
     source_url: HttpUrl | None = None
     observed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     attributes: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def stable_identity(self) -> ProviderRecord:
+        if not self.provider_id:
+            raise ValueError("A provider record must have a stable provider_id")
+        if "id" not in self.model_fields_set:
+            self.id = uuid5(
+                NAMESPACE_URL,
+                f"agentic-gtm/{type(self).__name__}/{self.provider}/{self.provider_id}",
+            )
+        return self
 
 
 class Account(ProviderRecord):
@@ -112,6 +124,24 @@ class CampaignSchedule(Contract):
     days: list[int] = Field(default_factory=lambda: [1, 2, 3, 4, 5])
     name: str = "Working hours"
 
+    @model_validator(mode="after")
+    def validate_schedule(self) -> CampaignSchedule:
+        from datetime import time
+
+        try:
+            ZoneInfo(self.timezone)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("Unknown schedule timezone") from exc
+        if time.fromisoformat(self.start) >= time.fromisoformat(self.end):
+            raise ValueError("Schedule start must be before end")
+        if (
+            not self.days
+            or len(set(self.days)) != len(self.days)
+            or any(day < 0 or day > 6 for day in self.days)
+        ):
+            raise ValueError("Schedule days must be unique values from 0 (Sunday) to 6")
+        return self
+
 
 class CampaignDraft(Contract):
     id: UUID = Field(default_factory=uuid4)
@@ -122,6 +152,7 @@ class CampaignDraft(Contract):
     schedule: CampaignSchedule = Field(default_factory=CampaignSchedule)
     suppression_lists: list[str] = Field(default_factory=list)
     experiment_id: UUID | None = None
+
     status: Literal["draft", "paused"] = "paused"
 
     @model_validator(mode="after")
@@ -156,18 +187,37 @@ class CampaignMetrics(Contract):
     id: UUID = Field(default_factory=uuid4)
     provider: str
     campaign: str
+    campaign_id: str = ""
     variant: str = ""
+    kind: Literal["interval", "cumulative"] = "interval"
+    unit: Literal["email", "contact", "account"] = "email"
     window_start: datetime
     window_end: datetime
     sent: int = Field(default=0, ge=0)
     delivered: int | None = Field(default=None, ge=0)
     bounced: int = Field(default=0, ge=0)
-    replied: int = Field(default=0, ge=0)
-    positive_replies: int = Field(default=0, ge=0)
-    meetings: int = Field(default=0, ge=0)
-    opportunities: int = Field(default=0, ge=0)
+    replied: int | None = Field(default=None, ge=0)
+    positive_replies: int | None = Field(default=None, ge=0)
+    meetings: int | None = Field(default=None, ge=0)
+    opportunities: int | None = Field(default=None, ge=0)
     source: str = "import"
     observed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    @model_validator(mode="after")
+    def validate_window(self) -> CampaignMetrics:
+        for name in ("window_start", "window_end", "observed_at"):
+            value = getattr(self, name)
+            if value.tzinfo is None:
+                setattr(self, name, value.replace(tzinfo=UTC))
+        if self.window_end <= self.window_start:
+            raise ValueError("Metric window_end must be after window_start")
+        if self.bounced > self.sent or (
+            self.delivered is not None and self.delivered + self.bounced > self.sent
+        ):
+            raise ValueError("Delivered and bounced counts cannot exceed sent")
+        if not self.campaign_id:
+            self.campaign_id = self.campaign
+        return self
 
     @property
     def effective_delivered(self) -> int:
@@ -187,7 +237,7 @@ class ActionPlan(Contract):
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     expires_at: datetime = Field(default_factory=lambda: datetime.now(UTC) + timedelta(hours=24))
     hash: str = ""
-    status: Literal["pending", "applied", "expired"] = "pending"
+    status: Literal["pending", "applying", "needs_review", "applied", "expired"] = "pending"
 
     def canonical_payload(self) -> str:
         body = {

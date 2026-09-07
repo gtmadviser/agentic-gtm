@@ -15,7 +15,10 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from filelock import FileLock
+
 from ..contracts import ActionPlan, ApplyResult
+from ..safety.plans import assert_plan_can_apply
 from .base import TABLES
 
 DEFAULT_ROOT = Path(".gtm") / "store"
@@ -24,15 +27,17 @@ _JSON_PREFIX = "json:"
 
 def _encode(value: Any) -> str:
     if value is None:
-        return ""
-    if isinstance(value, (dict, list, bool)):
+        return "json:null"
+    if isinstance(value, (dict, list, bool, int, float)) or (
+        isinstance(value, str) and (value == "" or value.startswith(_JSON_PREFIX))
+    ):
         return _JSON_PREFIX + json.dumps(value, sort_keys=True, default=str)
     return str(value)
 
 
 def _decode(value: str) -> Any:
     if value == "":
-        return None
+        return None  # Legacy CSV null; new empty strings are explicitly JSON encoded.
     if value.startswith(_JSON_PREFIX):
         return json.loads(value[len(_JSON_PREFIX) :])
     return value
@@ -58,6 +63,7 @@ class FileStore:
     def __init__(self, root: Path | str = DEFAULT_ROOT) -> None:
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
+        self.lock = FileLock(str(self.root / ".store.lock"), timeout=10)
         (self.root / "plans").mkdir(exist_ok=True)
         (self.root / "apply-results").mkdir(exist_ok=True)
         gitignore = self.root / ".gitignore"
@@ -72,6 +78,12 @@ class FileStore:
         return self.root / f"{table}.csv"
 
     def _read(self, table: str) -> list[dict[str, Any]]:
+        if table in {"action_plans", "apply_results"}:
+            folder = "plans" if table == "action_plans" else "apply-results"
+            return [
+                json.loads(path.read_text(encoding="utf-8"))
+                for path in sorted((self.root / folder).glob("*.json"))
+            ]
         path = self._path(table)
         if not path.exists():
             return []
@@ -101,21 +113,28 @@ class FileStore:
     ) -> list[dict[str, Any]]:
         if not records:
             return []
-        keys = [key.strip() for key in on_conflict.split(",") if key.strip()]
-        existing = self._read(table)
-        index = {
-            tuple(str(row.get(key, "")) for key in keys): position
-            for position, row in enumerate(existing)
-        }
-        for record in records:
-            identity = tuple(str(record.get(key, "")) for key in keys)
-            if identity in index:
-                existing[index[identity]] = {**existing[index[identity]], **record}
-            else:
-                index[identity] = len(existing)
-                existing.append(dict(record))
-        self._write(table, existing)
-        return records
+        with self.lock:
+            keys = [key.strip() for key in on_conflict.split(",") if key.strip()]
+            existing = self._read(table)
+            index = {
+                tuple(str(row.get(key, "")) for key in keys): position
+                for position, row in enumerate(existing)
+            }
+            for record in records:
+                identity = tuple(str(record.get(key, "")) for key in keys)
+                if identity in index:
+                    previous = existing[index[identity]]
+                    existing[index[identity]] = {**previous, **record}
+                    if "id" not in keys and previous.get("id"):
+                        existing[index[identity]]["id"] = previous["id"]
+                else:
+                    index[identity] = len(existing)
+                    existing.append(dict(record))
+            self._write(table, existing)
+            return [
+                existing[index[tuple(str(record.get(key, "")) for key in keys)]]
+                for record in records
+            ]
 
     def select(self, table: str, params: dict[str, str] | None = None) -> list[dict[str, Any]]:
         params = params or {}
@@ -125,11 +144,41 @@ class FileStore:
 
     # -- plans ------------------------------------------------------------------
 
+    def _save_json(self, path: Path, content: str) -> None:
+        temporary = path.with_suffix(".json.tmp")
+        temporary.write_text(content, encoding="utf-8")
+        temporary.replace(path)
+
     def create_plan(self, plan: ActionPlan) -> ActionPlan:
         sealed = plan.sealed()
-        path = self.root / "plans" / f"{sealed.id}.json"
-        path.write_text(sealed.model_dump_json(indent=2), encoding="utf-8")
+        with self.lock:
+            for row in self._read("action_plans"):
+                if row["idempotency_key"] == sealed.idempotency_key:
+                    return ActionPlan.model_validate(row)
+            path = self.root / "plans" / f"{sealed.id}.json"
+            if path.exists():
+                raise ValueError("Plan ID already exists; immutable plans cannot be overwritten")
+            self._save_json(path, sealed.model_dump_json(indent=2))
         return sealed
+
+    def claim_apply(self, plan_id: UUID | str) -> ActionPlan:
+        with self.lock:
+            plan = self.get_plan(plan_id)
+            assert_plan_can_apply(plan)
+            self._save_json(
+                self.root / "plans" / f"{plan.id}.json",
+                plan.model_copy(update={"status": "applying"}).model_dump_json(indent=2),
+            )
+            return plan
+
+    def mark_needs_review(self, plan_id: UUID | str) -> None:
+        with self.lock:
+            plan = self.get_plan(plan_id)
+            if plan.status == "applying":
+                self._save_json(
+                    self.root / "plans" / f"{plan.id}.json",
+                    plan.model_copy(update={"status": "needs_review"}).model_dump_json(indent=2),
+                )
 
     def get_plan(self, plan_id: UUID | str) -> ActionPlan:
         path = self.root / "plans" / f"{plan_id}.json"
@@ -138,17 +187,19 @@ class FileStore:
         return ActionPlan.model_validate_json(path.read_text(encoding="utf-8"))
 
     def record_apply(self, result: ApplyResult) -> ApplyResult:
-        path = self.root / "apply-results" / f"{result.plan_id}.json"
-        if not path.exists():
-            path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
-        plan_path = self.root / "plans" / f"{result.plan_id}.json"
-        if plan_path.exists():
-            plan = ActionPlan.model_validate_json(plan_path.read_text(encoding="utf-8"))
-            if plan.status == "pending":
-                plan_path.write_text(
-                    plan.model_copy(update={"status": "applied"}).model_dump_json(indent=2),
-                    encoding="utf-8",
-                )
+        with self.lock:
+            prior = self.applied_result(result.plan_id)
+            if prior:
+                return prior
+            path = self.root / "apply-results" / f"{result.plan_id}.json"
+            # Write the result first. A crash before the status update still prevents replay.
+            self._save_json(path, result.model_dump_json(indent=2))
+            plan = self.get_plan(result.plan_id)
+            status = "needs_review" if result.status == "rejected" else "applied"
+            self._save_json(
+                self.root / "plans" / f"{plan.id}.json",
+                plan.model_copy(update={"status": status}).model_dump_json(indent=2),
+            )
         return result
 
     def applied_result(self, plan_id: UUID | str) -> ApplyResult | None:
@@ -165,5 +216,5 @@ class FileStore:
             "backend": self.backend,
             "root": str(self.root),
             "tables": counts,
-            "pending_plans": len(list((self.root / "plans").glob("*.json"))),
+            "pending_plans": sum(row["status"] == "pending" for row in self._read("action_plans")),
         }

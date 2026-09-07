@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 from uuid import UUID
 
 from ..adapters.base import APIClient
-from ..config import credential
+from ..config import credential, env_value
 from ..contracts import ActionPlan, ApplyResult
+from ..safety.plans import assert_plan_can_apply
 
 
 class SupabaseStore:
@@ -34,6 +34,29 @@ class SupabaseStore:
     ) -> list[dict[str, Any]]:
         if not records:
             return []
+        if on_conflict == "provider,provider_id":
+            import json
+
+            existing = {}
+            for provider in {row["provider"] for row in records}:
+                ids = [str(row["provider_id"]) for row in records if row["provider"] == provider]
+                for offset in range(0, len(ids), 100):
+                    wanted = ",".join(json.dumps(value) for value in ids[offset : offset + 100])
+                    for row in self.select(
+                        table,
+                        {
+                            "provider": f"eq.{provider}",
+                            "provider_id": f"in.({wanted})",
+                            "select": "id,provider,provider_id",
+                        },
+                    ):
+                        existing[(row["provider"], row["provider_id"])] = row["id"]
+            records = [
+                {**row, "id": existing.get((row["provider"], row["provider_id"]), row["id"])}
+                if "id" in row
+                else row
+                for row in records
+            ]
         return self.api.request(
             "POST",
             f"/{table}",
@@ -62,6 +85,30 @@ class SupabaseStore:
             raise LookupError(f"Action plan {plan_id} was not found in this Supabase project")
         return ActionPlan.model_validate(rows[0])
 
+    def claim_apply(self, plan_id: UUID | str) -> ActionPlan:
+        plan = self.get_plan(plan_id)
+        assert_plan_can_apply(plan)
+        rows = self.api.request(
+            "PATCH",
+            "/action_plans",
+            params={"id": f"eq.{plan.id}", "status": "eq.pending", "hash": f"eq.{plan.hash}"},
+            headers={"Prefer": "return=representation"},
+            json={"status": "applying"},
+        )
+        if not rows:
+            raise ValueError(
+                "Plan has already been claimed or changed; no external action performed"
+            )
+        return plan
+
+    def mark_needs_review(self, plan_id: UUID | str) -> None:
+        self.api.request(
+            "PATCH",
+            "/action_plans",
+            params={"id": f"eq.{plan_id}", "status": "eq.applying"},
+            json={"status": "needs_review"},
+        )
+
     def record_apply(self, result: ApplyResult) -> ApplyResult:
         body = result.model_dump(mode="json")
         self.api.request(
@@ -74,9 +121,9 @@ class SupabaseStore:
         self.api.request(
             "PATCH",
             "/action_plans",
-            params={"id": f"eq.{result.plan_id}", "status": "eq.pending"},
+            params={"id": f"eq.{result.plan_id}", "status": "in.(pending,applying)"},
             headers={"Prefer": "return=minimal"},
-            json={"status": "applied"},
+            json={"status": "needs_review" if result.status == "rejected" else "applied"},
         )
         return result
 
@@ -90,4 +137,4 @@ class SupabaseStore:
 
 
 def supabase_env_present() -> bool:
-    return bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
+    return bool(env_value("SUPABASE_URL") and env_value("SUPABASE_SERVICE_ROLE_KEY"))

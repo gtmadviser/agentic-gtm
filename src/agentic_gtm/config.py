@@ -3,18 +3,19 @@
 from __future__ import annotations
 
 import os
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class Policies(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    external_writes: str = "plan_then_apply"
-    campaigns_must_remain_paused: bool = True
+    external_writes: Literal["plan_then_apply"] = "plan_then_apply"
+    campaigns_must_remain_paused: Literal[True] = True
     require_supabase_for_connected_workflows: bool = False
 
 
@@ -42,23 +43,54 @@ class Settings(BaseModel):
     scopes: dict[str, Any] = Field(default_factory=dict)
     field_maps: dict[str, dict[str, str]] = Field(default_factory=dict)
     artifacts: dict[str, str] = Field(default_factory=lambda: {"root": "."})
+    workspace_root: Path = Field(default_factory=Path.cwd, exclude=True)
+
+    def resolve(self, path: Path | str) -> Path:
+        candidate = Path(path).expanduser()
+        return (
+            candidate.resolve()
+            if candidate.is_absolute()
+            else (self.workspace_root / candidate).resolve()
+        )
+
+
+_workspace_env: ContextVar[dict[str, str] | None] = ContextVar("gtm_workspace_env", default=None)
+
+
+def env_value(name: str, default: str = "") -> str:
+    """Shell values take precedence; workspace values never leak into os.environ."""
+    return os.environ.get(name, (_workspace_env.get() or {}).get(name, default)).strip()
 
 
 def load_settings(path: Path | str = "gtm.yaml") -> Settings:
-    load_dotenv(override=False)
-    config_path = Path(path)
+    config_path = Path(path).expanduser().resolve()
+    if str(path) == "gtm.yaml" and not config_path.exists():
+        config_path = next(
+            (
+                parent / "gtm.yaml"
+                for parent in Path.cwd().parents
+                if (parent / "gtm.yaml").exists()
+            ),
+            config_path,
+        )
+    root = config_path.parent
+    _workspace_env.set(
+        {key: value for key, value in dotenv_values(root / ".env").items() if value is not None}
+    )
     if not config_path.exists():
-        return Settings()
+        if str(path) != "gtm.yaml":
+            raise FileNotFoundError(f"Configuration not found: {config_path}")
+        return Settings(workspace_root=root)
     data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
-    return Settings.model_validate(data)
+    return Settings.model_validate({**data, "workspace_root": root})
 
 
 def credential(name: str) -> str:
-    value = os.getenv(name, "").strip()
+    value = env_value(name)
     if not value:
         raise RuntimeError(f"Missing {name}. Add it to .env; credentials are never CLI arguments.")
     return value
 
 
 def has_supabase() -> bool:
-    return bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
+    return bool(env_value("SUPABASE_URL") and env_value("SUPABASE_SERVICE_ROLE_KEY"))

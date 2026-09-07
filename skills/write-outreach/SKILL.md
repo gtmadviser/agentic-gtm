@@ -34,7 +34,7 @@ Do not use it:
 
 ## Procedure
 
-1. **Confirm the stage.** Run `gtm --json next`. If `next.stage` is not `copy`, stop and route to the skill it names. Copy written before the ICP and experiment are approved is rewritten later, every time.
+1. **Check this experiment.** Run `gtm --json next` for context, then verify the approved ICP, experiment and audience directly. Workspace-wide artifacts from another experiment do not block a new copy cycle. Resolve missing prerequisites before writing.
 2. **Load the voice override.** Read the voice block in `context/company.md`: formal or informal address, forbidden punctuation, spelling variant, which step the founder writes personally. If the block is missing, write it first with the operator and record it in `strategy/decisions.md`.
 3. **Pick one angle per message.** The experiment names the trigger. Choose the single angle that follows from it (a loss the recipient can feel, a task they are trying to staff, a season, a visible workaround). Two angles in one message is the most common reason copy underperforms.
 4. **Pick 2-3 levers, not 13.** From `references/copy-rules.md` section "Levers", choose the two or three that fit the audience. Stacking more dilutes each one.

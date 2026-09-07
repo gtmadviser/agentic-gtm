@@ -20,7 +20,7 @@ A default library user agent gets a Cloudflare 403 with error 1010 (observed 202
 
 ## Rate limits and retries
 
-About 20 requests per 2 seconds. Sleep 150 to 200 ms between calls. Retry 429 and 5xx with backoff.
+About 20 requests per 2 seconds. Sleep 150 to 200 ms between calls. Retry safe reads on 429 and 5xx with backoff; do not automatically repeat mutations.
 
 ## Pagination
 
@@ -95,3 +95,5 @@ Seat rule: lemlist caps mailboxes per user at about five, and an OAuth-connected
 ## Verify before coding
 
 Fetch https://developer.lemlist.com/llms.txt and the specific page before writing new calls. Sequence endpoints are undocumented; probe against a throwaway paused campaign and record what you find here with a date.
+
+HTTP retry policy: automatic retries are limited to safe reads. Mutations are attempted once; ambiguous outcomes require provider reconciliation before another write. See [reliability upgrade notes](../reliability-upgrade.md).

@@ -24,7 +24,7 @@ These apply to every provider, every script, and every skill.
 4. **Idempotent by default.** Re-running a script must not duplicate records. Upsert on a stable key, keep a resumable state file, and treat "already exists" responses as success, not failure.
 5. **Approval before external writes.** The CLI creates an immutable plan first and applies only with an explicit plan ID. Scripts outside the CLI follow the same shape: print plan, ask, then act.
 6. **Campaigns stay paused.** No adapter, script, or skill in this repository activates or sends. Activation is a human action in the vendor UI.
-7. **Rate limits are real.** Sleep between calls, chunk batch endpoints, and retry only on 429 and 5xx with backoff. A 4xx is a bug in the request, not a transient error.
+7. **Rate limits are real.** Sleep between calls, chunk batch endpoints, and retry safe reads on 429 and 5xx with backoff. Reconcile ambiguous mutations before retrying. A 4xx is a bug in the request, not a transient error.
 8. **Read-only on other people's assets.** Campaigns, mailboxes, and CRM records owned by teammates or a client's reps are read-only unless that person authorises the change. Mutating scripts carry an explicit allowlist of IDs they own and default to deny.
 9. **Credit-consuming operations show their cost first.** Before any enrichment, verification, or export that burns credits, print the plan, the remaining balance, and the cap, and get approval.
 10. **Log the observed date on every gotcha you add.** Future readers need to know how stale a workaround is.
@@ -45,3 +45,5 @@ Gotchas (table: symptom, cause, fix, observed)
 What the gtm CLI does with it
 Verify-before-coding rule
 ```
+
+HTTP retry policy: automatic retries are limited to safe reads. Mutations are attempted once; ambiguous outcomes require provider reconciliation before another write. See [reliability upgrade notes](../reliability-upgrade.md).

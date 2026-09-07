@@ -26,7 +26,7 @@ def copy_skills(target: Path) -> list[str]:
             destination = destination_root / source.name
             if destination.exists():
                 shutil.rmtree(destination)
-            shutil.copytree(source, destination)
+            shutil.copytree(source, destination, ignore=shutil.ignore_patterns("* 2.*", "__pycache__", "*.pyc"))
             generated.extend(
                 str(path.relative_to(target)) for path in destination.rglob("*") if path.is_file()
             )
@@ -38,9 +38,10 @@ def generate(target: Path, version: str) -> dict[str, object]:
     created = initialize_workspace(target, overwrite=True)
     created.extend(copy_skills(target))
 
-    migration = target / "supabase" / "migrations" / "0001_initial.sql"
-    shutil.copy2(ROOT / "src" / "agentic_gtm" / "sql" / "0001_initial.sql", migration)
-    created.append(str(migration.relative_to(target)))
+    for source in sorted((ROOT / "src" / "agentic_gtm" / "sql").glob("*.sql")):
+        migration = target / "supabase" / "migrations" / source.name
+        shutil.copy2(source, migration)
+        created.append(str(migration.relative_to(target)))
 
     runtime_pin = f"v{version}"
     pyproject = f"""[project]

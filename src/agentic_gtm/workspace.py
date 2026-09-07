@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
+from importlib.resources import files
 from pathlib import Path
 
 DIRECTORIES = (
@@ -22,11 +23,13 @@ DIRECTORIES = (
 
 ROUTER = """# Agent router
 
+For LinkedIn post engagers use `linkedin-engager-outreach` for collection, ICP scoring and outreach handoff.
+
 Start every session with the `gtm-kickoff` skill. It runs `gtm doctor` and `gtm --json next`,
 explains which stage the workspace is in, and routes to the right skill from `{skills}`.
 
-Read `OPERATING-CONTRACT.md` before acting. Use the `gtm` CLI for every provider operation and
-add `--json` for stable output. Never bypass plan/apply approval gates.
+Read `OPERATING-CONTRACT.md` before acting. Use the `gtm` CLI or the selected skill's documented provider helper.
+For `gtm`, add `--json` for stable output; helpers follow their documented output contract. Never bypass plan/apply approval gates.
 
 ## Chain (in order)
 
@@ -270,6 +273,23 @@ def initialize_workspace(target: Path, *, overwrite: bool = False) -> list[str]:
         if relative in EXECUTABLE:
             os.chmod(destination, 0o755)
         created.append(relative)
+    packaged = files("agentic_gtm").joinpath("resources", "skills")
+    source = packaged if packaged.is_dir() else Path(__file__).resolve().parents[2] / "skills"
+
+    def copy_tree(origin, destination):
+        for item in origin.iterdir():
+            if item.name == "__pycache__" or " 2." in item.name or item.name.endswith(".pyc"):
+                continue
+            path = destination / item.name
+            if item.is_dir():
+                copy_tree(item, path)
+            elif overwrite or not path.exists():
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(item.read_bytes())
+                created.append(str(path.relative_to(target)))
+
+    for agent in (".agents", ".claude"):
+        copy_tree(source, target / agent / "skills")
     return created
 
 

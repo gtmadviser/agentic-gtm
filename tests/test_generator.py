@@ -16,3 +16,8 @@ def test_generator_copies_canonical_skills_byte_for_byte(tmp_path: Path) -> None
         assert (target / ".claude" / "skills" / skill.name / "SKILL.md").read_bytes() == canonical
     saved = json.loads((target / ".generated.json").read_text())
     assert saved["files"] == manifest["files"]
+
+    canonical_sql = ROOT / "src" / "agentic_gtm" / "sql"
+    for migration in canonical_sql.glob("*.sql"):
+        assert (target / "supabase" / "migrations" / migration.name).read_bytes() == migration.read_bytes()
+    assert not list((target / ".agents/skills").rglob("* 2.*"))

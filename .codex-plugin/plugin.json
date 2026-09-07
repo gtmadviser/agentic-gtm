@@ -1,7 +1,7 @@
 {
   "name": "agentic-gtm",
   "version": "0.2.0",
-  "description": "Fifteen GTM skills with playbooks, backed by a deterministic, approval-gated CLI.",
+  "description": "Sixteen GTM skills with playbooks, backed by a deterministic, approval-gated CLI.",
   "author": {
     "name": "GTM Adviser",
     "url": "https://gtmadviser.com"
@@ -10,7 +10,7 @@
   "interface": {
     "displayName": "Agentic GTM",
     "shortDescription": "Run evidence-led GTM workflows from Codex.",
-    "longDescription": "Fifteen portable GTM skills use the gtm CLI for normalized provider access, startup-owned data, durable artifacts, and explicit approval before external writes.",
+    "longDescription": "Sixteen portable GTM skills use the gtm CLI for normalized provider access, startup-owned data, durable artifacts, and explicit approval before external writes.",
     "developerName": "GTM Adviser",
     "category": "Productivity",
     "capabilities": ["skills", "scripts"],

@@ -31,12 +31,12 @@ Do not use it:
 | store table `campaigns` and the sending log | previously contacted, bounced, replied recipients |
 | suppression lists in the store | unsubscribes, hostile replies, customers, open deals, competitors, legal exclusions |
 | mailbox inventory (provider API, not the dashboard) | healthy senders, warm-up state, burned domains |
-| `gtm --json next` | confirms stage `plan` |
+| `gtm --json next` | workspace hint; verify this experiment directly |
 | `OPERATING-CONTRACT.md` | plan-then-apply, paused-only, no recipients in Git |
 
 ## Procedure
 
-1. **Confirm the stage.** `gtm --json next` must report `plan`. If it reports `copy`, the copy file is missing or unscored.
+1. **Check this experiment.** Use `gtm --json next` as a workspace hint. Verify the approved audience, experiment and reviewed copy directly. The CLI detects JSON drafts, so it can still report `copy` until step 6 creates the draft; that does not block this handoff.
 2. **Size the campaign.** Daily target ÷ per-mailbox cap (20-30) = mailboxes needed. Check the inventory has that many healthy, dedicated senders. If not, cut the daily target; never raise the cap.
 3. **Build the recipient pool** from the audience query in the experiment. Record the count.
 4. **Run the mandatory filters** in `references/pre-launch-checklist.md` section "Filters", in order. Record the count after each filter. A pool that loses more than 30 percent to bounced or previously-contacted filters is a data problem; stop and fix sourcing.
@@ -75,7 +75,7 @@ Do not use it:
 
 ## Checklist
 
-- [ ] `gtm --json next` reports stage `plan`
+- [ ] This experiment has an approved audience and reviewed copy; readiness checked directly
 - [ ] Copy file rubric score 85 or above, slop gate passed
 - [ ] Experiment status `approved`, decision rule written
 - [ ] Sizing done: mailboxes = daily target ÷ per-mailbox cap

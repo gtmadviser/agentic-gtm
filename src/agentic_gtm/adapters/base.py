@@ -39,30 +39,44 @@ class APIClient:
             transport=transport,
         )
 
-    def request(self, method: str, path: str, **kwargs: Any) -> Any:
+    def request(
+        self, method: str, path: str, *, retry_safe: bool | None = None, **kwargs: Any
+    ) -> Any:
+        # POST may have succeeded before a timeout. Never repeat a mutation implicitly.
+        attempts = (
+            4
+            if (retry_safe if retry_safe is not None else method.upper() in {"GET", "HEAD"})
+            else 1
+        )
         last_error: Exception | None = None
-        for attempt in range(4):
+        for attempt in range(attempts):
             try:
                 response = self.client.request(method, path, **kwargs)
                 if response.status_code == 429 or response.status_code >= 500:
-                    if attempt == 3:
+                    if attempt == attempts - 1:
                         response.raise_for_status()
-                    wait = min(float(response.headers.get("retry-after", 2**attempt)), 8)
+                    try:
+                        wait = min(
+                            max(float(response.headers.get("retry-after", 2**attempt)), 0), 8
+                        )
+                    except ValueError:
+                        wait = min(2**attempt, 8)
                     time.sleep(wait)
                     continue
                 response.raise_for_status()
                 return response.json() if response.content else {}
             except (httpx.TimeoutException, httpx.NetworkError) as exc:
                 last_error = exc
-                if attempt == 3:
+                if attempt == attempts - 1:
                     break
                 time.sleep(min(2**attempt, 4))
             except httpx.HTTPStatusError as exc:
-                detail = exc.response.text[:300]
                 raise AdapterError(
-                    f"{method} {path} failed with HTTP {exc.response.status_code}: {detail}"
-                ) from exc
-        raise AdapterError(f"{method} {path} failed after retries: {last_error}")
+                    f"{method} {path} failed with HTTP {exc.response.status_code}"
+                ) from None
+        raise AdapterError(
+            f"{method} {path} failed after {attempts} attempt(s): {type(last_error).__name__}"
+        ) from None
 
 
 class ProviderAdapter(ABC):

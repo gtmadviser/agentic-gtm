@@ -35,3 +35,5 @@
 6. Report publication approval before any Slack post.
 
 Kickoff names the gate, then stops. The operator's reply is the approval.
+
+For LinkedIn post reactions, comments, Harvest engager collection and ICP-scored LinkedIn outreach, route to `linkedin-engager-outreach`.

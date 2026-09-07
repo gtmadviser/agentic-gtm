@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 import httpx
 
-from ...config import credential
+from ...config import credential, env_value
 from ...contracts import ActionPlan, ApplyResult
 from ..base import AdapterError, APIClient, ProviderAdapter
 
@@ -17,8 +16,8 @@ class SlackAdapter(ProviderAdapter):
     capabilities = frozenset({"inspect", "plan_report", "apply_report"})
 
     def __init__(self, token: str | None = None, **client_kwargs: Any) -> None:
-        self.token = token or os.getenv("SLACK_BOT_TOKEN", "").strip()
-        self.webhook = os.getenv("SLACK_WEBHOOK_URL", "").strip()
+        self.token = token or env_value("SLACK_BOT_TOKEN", "").strip()
+        self.webhook = env_value("SLACK_WEBHOOK_URL", "").strip()
         if not self.token and not self.webhook:
             credential("SLACK_BOT_TOKEN")
         self.api = (
@@ -45,7 +44,7 @@ class SlackAdapter(ProviderAdapter):
         }
 
     def plan_report(self, text: str, channel: str | None = None) -> dict[str, Any]:
-        channel = channel or os.getenv("SLACK_CHANNEL_ID", "").strip()
+        channel = channel or env_value("SLACK_CHANNEL_ID", "").strip()
         if self.token and not channel:
             raise AdapterError("SLACK_CHANNEL_ID is required for verified bot posting")
         return {"channel": channel or "webhook", "text": text, "unfurl_links": False}

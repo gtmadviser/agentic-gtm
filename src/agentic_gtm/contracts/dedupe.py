@@ -28,7 +28,8 @@ def normalized_linkedin(value: str | None) -> str:
     candidate = value if "://" in value else f"https://{value}"
     parsed = urlparse(candidate)
     path = re.sub(r"/+", "/", parsed.path).rstrip("/").lower()
-    return f"linkedin.com{path}" if "linkedin.com" in (parsed.hostname or "") else ""
+    host = (parsed.hostname or "").lower()
+    return f"linkedin.com{path}" if host == "linkedin.com" or host.endswith(".linkedin.com") else ""
 
 
 def deduplicate(records: Iterable[T], key: Callable[[T], str]) -> list[T]:
