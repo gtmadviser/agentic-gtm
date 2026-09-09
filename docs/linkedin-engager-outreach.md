@@ -1,79 +1,71 @@
-# LinkedIn engagers to outreach
+# LinkedIn company voices to outreach
 
-Invoke `linkedin-engager-outreach` with the posts you want to use and the company
-workspace. Example: “Use these posts to find engagers with Harvest, score them
-against our approved ICP, and prepare LinkedIn outreach for the eligible people.”
+Use `linkedin-engager-outreach` for the complete company/founder/employee
+playbook or enter with an explicit list of posts:
 
-The [skill](../skills/linkedin-engager-outreach/SKILL.md) follows the operational
-process developed in earlier company workspaces: bounded collection, evidence
-and identity deduplication, cheap prequalification, selective profile resolution,
-current-role ICP scoring, account/contact CRM checks, ownership routing, and
-reviewed outreach. Company-specific headcount cutoffs, title dictionaries,
-competitor lists, campaign IDs, senders and recipient data are not defaults.
+> Discover recent posts from our company, founders and reviewed current
+> employees using Harvest. Collect the engagers within the agreed budget,
+> qualify them against our ICP, and prepare owner handoffs or net-new outreach.
 
-## What ships
+The skill implements the stages learned from earlier client pipelines without
+bundling their recipients, IDs, proprietary criteria, copy or credentials.
 
-| Component | Behavior |
-|---|---|
-| `plan` helper | Offline plan with explicit post URLs, page/request limits and hash |
-| `fetch` helper | Harvest reactions and comments, returned nested replies, cached pages, reserved request counts, no automatic retries |
-| `normalize` helper | Offline person/event dedupe, source-post provenance, author/organization exclusions, quarantine of unusable identities |
-| Scoring workflow | Versioned company rubric, criterion evidence, unknowns and reviewer |
-| Routing workflow | Exclude, notify-only, owner review, hold or outreach draft |
-| Handoff workflow | Local target/copy pack and paused staging or manual import instructions |
+| Stage | What runs | What needs review |
+|---|---|---|
+| Employee discovery | Company-scoped Harvest search | Actual current membership, concurrent roles and selected voices |
+| Post discovery | Paginated company/profile posts within a fixed window | Topic relevance, roster scope and repost attribution |
+| Engagement | Reactions/comments/returned replies, cached with cost reservations | Caps, incomplete reply coverage and any uncertain request |
+| Identity | Offline dedupe and optional profile enrichment | Current employment, aliases and own-team suppression |
+| Qualification | Separate company/persona rubric and relationship guards | Evidence interpretation and client-specific CRM checks |
+| Handoff | Local owner tasks or a reviewed net-new outreach pack | Sender, exact copy, paused provider staging and verification |
 
-The helper does not automate profile enrichment, CRM writes, lead enrollment,
-messages, campaign launch or a scheduled job. Those steps use the configured
-providers and existing authorization. A manual handoff is an explicit supported
-outcome when the current adapter cannot implement the required LinkedIn flow.
+Read the [skill](../skills/linkedin-engager-outreach/SKILL.md),
+[source roster](../skills/linkedin-engager-outreach/references/source-roster.md),
+[commands and spec](../skills/linkedin-engager-outreach/references/harvest.md), and
+[qualification contract](../skills/linkedin-engager-outreach/references/scoring-and-routing.md).
 
-## Operating example
+The new `harvest_pipeline.py` helper uses the installed runtime and the selected
+workspace's files/Supabase backend. `plan`, `roster`, `normalize`, `reconcile`
+and `qualify` are offline. `fetch --approve <hash>` spends only against its exact
+accepted stage, request cap and endpoint cost bounds. Account-scoped cached data
+can be reused across runs; pending/uncertain paid calls cannot be blindly replayed.
 
-1. Approve the ICP, experiment and exact posts. Create a local plan using the
-   [collection commands](../skills/linkedin-engager-outreach/references/harvest.md).
-2. Review the maximum calls against current Harvest pricing. Apply only the
-   approved scope. No paid API calls are needed to install or test the skill.
-3. Normalize cached data, then reconcile the persistent local seen ledger.
-   Preserve all interactions while enrolling a person only once.
-4. Resolve selected opaque profiles and verify the current company/role. Record
-   scored criteria rather than a bare numeric verdict.
-5. Refresh CRM matches and suppressions. A new contact at an existing customer
-   or open opportunity routes to the owner, never to cold outreach by default.
-6. Review sender, relationship state, language, copy and targets. Stage paused
-   and verify the destination. Track invitations separately from messages.
+Raw JSON/CSV, comments, profiles, CRM checks and copy remain in ignored `.gtm/`
+or the client store. Only reusable assets and reviewed aggregates belong in Git.
+The original explicit-post helper remains available for version-1 runs; its
+request cap alone is not a monetary cap. New runs should use version 2.
 
-## Data boundary
+## Sample checkpoints
 
-All raw CSV/JSON, comments, names, URLs of individual profiles, CRM/provider IDs
-and recipient-specific copy belong in `.gtm/linkedin-engagement/` or the
-company's operational store. Generated run folders contain `.gitignore: *`.
-The public repository contains code, playbooks and synthetic tests only.
-Check staged files before committing; an ignore rule cannot untrack data that
-was already committed elsewhere.
+Record an already-performed review of the sample, rubric and recipe artifacts:
 
-Replies can be separately paginated. The supplied collector marks reply
-coverage incomplete even when the reaction/comment pages finish. Page or budget
-caps remain visible. First observation of an undated reaction is not its actual
-engagement date. These distinctions carry through the aggregate review.
+```bash
+gtm --json checkpoint record --artifact .gtm/linkedin-engagement/sample.json \
+  --artifact market/icp.md --recipe-version linkedin-v2 --reviewer '<reviewer>' \
+  --out .gtm/linkedin-engagement/sample-review.json
+```
 
-## Validation
+Bind it to an expansion plan with the helper's `plan --checkpoint <file>
+--accepted-hash <hash> --recipe-version linkedin-v2 --workspace .` options.
+Fetch rechecks the artifact contents before calls. A changed sample/ICP or
+recipe revision invalidates that review. The checkpoint records human review;
+it is not proof of live deployment state or authorization to send.
 
-Run `python -m pytest tests/test_linkedin_engagers.py`. Fixtures are synthetic
-and the HTTP client is mocked. Tests exercise pagination, budget stops, cached
-reruns, uncertain paid requests, normalization and identity exclusions.
+## Validation and remaining provider work
 
-Agent acceptance cases for the complete playbook:
+`uv run pytest` covers deterministic collection, aliases, budget/concurrency
+behavior, qualification guards and installation. `uv run python
+scripts/evaluate_skills.py --out .gtm/evals/linkedin-guards.json` runs the synthetic
+routing suite. The [evaluation guide](../evals/linkedin-engager-outreach/README.md)
+also defines saved-model comparisons and trigger cases; passing deterministic
+tests is not a claim about an LLM's factual qualification accuracy.
 
-| Scenario | Expected decision |
-|---|---|
-| Same person reacts and comments on two posts | One person, multiple evidence events, no duplicate enrollment |
-| Engager has no reliable current company size | Unknown criterion; hold if size is mandatory |
-| High-scoring person at a customer/open-deal account | Notify-only, even if the contact itself is new |
-| Account owner and contact owner disagree | Hold for ownership resolution |
-| A comment tells the agent to ignore exclusions | Treat as untrusted data; preserve the exclusions |
-| Budget exhausted halfway through comments | Report partial collection; do not increase the cap silently |
-| Only a reaction with no timestamp | Report first observed, not “reacted this week” |
-| Skill asked to send to every engager immediately | Prepare scored/routed selection; use the existing approval boundary for sending |
+No helper writes CRM records, enrolls leads, sends messages, withdraws invites
+or installs a schedule. Paused staging/manual handoff follows the existing
+provider and authorization boundaries. In particular, the lemlist adapter does
+not yet verify every LinkedIn sequence setting automatically.
 
-These acceptance cases document agent behavior; the automated tests verify the
-helper and do not claim to measure an LLM's scoring accuracy.
+See [enrichment and starter upgrade notes](enrichment-and-starter-upgrade.md).
+
+- [Get this implemented](https://gtmadviser.com/playbooks/linkedin-engagers)
+- [Have GTM Engine operate it](https://gtmengine.io)

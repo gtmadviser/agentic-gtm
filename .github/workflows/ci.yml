@@ -20,3 +20,27 @@ jobs:
       - run: uv run pytest --cov=agentic_gtm --cov-report=term-missing
       - run: uv run python scripts/validate_release.py
       - run: uv run python scripts/scan_public_release.py . --history
+      - run: uv run python scripts/evaluate_skills.py --out .gtm/evals/linkedin-guards.json
+
+  enrichment-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 55439:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      GTM_TEST_PG_HOST: 127.0.0.1
+      PGUSER: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --all-extras --frozen
+      - run: uv run pytest tests/test_enrichment_postgres.py

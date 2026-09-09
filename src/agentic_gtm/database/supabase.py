@@ -135,6 +135,12 @@ class SupabaseStore:
         pending = self.select("action_plans", {"status": "eq.pending", "select": "id"})
         return {"backend": self.backend, "pending_plans": len(pending)}
 
+    def enrichment_rpc(self, operation: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return self.api.request(
+            "POST", "/rpc/gtm_enrichment",
+            json={"p_operation": operation, "p_data": payload},
+        )
+
 
 def supabase_env_present() -> bool:
     return bool(env_value("SUPABASE_URL") and env_value("SUPABASE_SERVICE_ROLE_KEY"))

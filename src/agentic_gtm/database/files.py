@@ -210,6 +210,17 @@ class FileStore:
 
     # -- introspection ----------------------------------------------------------
 
+    def enrichment_rpc(self, operation: str, payload: dict[str, Any]) -> dict[str, Any]:
+        from ..enrichment import file_operation
+
+        path = self.root / "enrichment-state.json"
+        with self.lock:
+            state = json.loads(path.read_text()) if path.exists() else {}
+            result = file_operation(state, operation, payload)
+            if operation != "inspect":
+                self._save_json(path, json.dumps(state, sort_keys=True, allow_nan=False))
+            return result
+
     def describe(self) -> dict[str, Any]:
         counts = {table: len(self._read(table)) for table in TABLES if self._path(table).exists()}
         return {

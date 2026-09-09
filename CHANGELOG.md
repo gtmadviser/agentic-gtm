@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Extend the LinkedIn playbook from explicit posts to founder/company/employee
+  discovery, reviewed current-role rosters, selective enrichment and routed outreach.
+- Add client/account-scoped enrichment cache, atomic paid-call reservations and
+  migration `0004_enrichment.sql`; integrate the five-stage Harvest helper.
+- Add separate company/persona qualification guards, synthetic skill evaluations,
+  content-bound sample checkpoints and reviewable starter upgrade plans.
+
 - Add `linkedin-engager-outreach`: Harvest post collection, local identity/event
   dedupe, evidence-based ICP scoring, account/contact CRM routing and reviewed
   LinkedIn outreach handoff. Includes a bounded, cached collection helper and

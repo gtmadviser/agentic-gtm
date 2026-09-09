@@ -1,4 +1,4 @@
 interface:
   display_name: "LinkedIn Engager Outreach"
-  short_description: "Harvest post engagers, score ICP fit, prepare outreach"
-  default_prompt: "Use $linkedin-engager-outreach to turn these LinkedIn posts into an ICP-scored audience and a reviewed LinkedIn outreach pack."
+  short_description: "Discover company voices, qualify engagers, prepare outreach"
+  default_prompt: "Use $linkedin-engager-outreach to discover posts from our company, founders and reviewed employees, qualify their engagers and prepare routed LinkedIn outreach."

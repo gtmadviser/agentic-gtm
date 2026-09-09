@@ -1,55 +1,88 @@
-# ICP scoring and routing
+# Evidence, qualification and routing
 
-Build the rubric from the approved ICP and experiment, not from the list you
-just collected. Give it a version and retain the evidence date. If the company
-has a rubric, use it. Otherwise propose weights and a qualifying threshold for
-approval; do not silently adopt a technology company's title or headcount gates.
+Build the rubric from the approved company ICP and experiment. Preserve its
+revision. Do not copy another client's title dictionary, headcount cutoff,
+competitor list or signal-specific company segments.
 
-| Criterion | Evidence | Decision |
-|---|---|---|
-| Company fit | domain, sector, size, geography, business model | pass, fail, unknown |
-| Persona fit | resolved current title, function, responsibility | pass, fail, unknown |
-| Required business trigger | a dated source explicitly required by the ICP | pass, fail, unknown |
-| Anti-ICP | competitors, own employees, excluded industries/roles | exclude or clear |
-| Engagement | exact post, reaction/comment/reply, first observation | separate signal; zero automatic fit points |
+Keep four things separate: company fit, persona fit, observed engagement and
+outreach eligibility. Unknown mandatory evidence holds a row regardless of
+engagement or its other scores. A fit score never authorizes a message.
 
-For an approved weighted rubric, `fit_score = sum(earned criterion points)`.
-Include `score_max`, `known_weight` and per-criterion evidence. Unknown criteria
-earn no points but are not a negative fact. A score cannot override a failed
-mandatory criterion or missing critical evidence. Keep `fit_status` (`fit`,
-`not_fit`, `review`) separate from score and confidence. Do not infer protected
-or sensitive personal traits; score business relevance only.
+## Evidence pipeline
 
-`qualification.csv` should include `person_id`, `profile_url`, `current_title`,
-`company_domain`, `rubric_version`, `fit_score`, `score_max`, `known_weight`,
-`fit_status`, `criterion_results_json`, `evidence_ids`, `unknowns`,
-`excluded_reason`, `reviewed_by`, `reviewed_at`. Evidence entries carry a source
-URL, observed date and the supported value. A bare score is not qualification.
+1. Screen captured headlines cheaply. Exclude clear own-team/non-target cases,
+   retain ambiguous founders or titles for review, and audit dropped rows.
+2. Resolve shortlisted profiles when identity/current-role evidence is missing.
+   Save opaque/public aliases and inspect all current roles; do not simply choose
+   the first role returned. Hold conflicting employment.
+3. Match companies to fresh CRM facts using domain or company LinkedIn identity.
+   Enrich missing company facts selectively. If an experiment requires technology
+   or business signals, record those sources in separate criteria; engagement
+   is not a substitute for that evidence.
+4. Recheck persona fit after resolution. A technical-looking headline can resolve
+   to a different current job; do not preserve a stale prequalification pass.
 
-CRM fields are company-specific. Read configured field mappings and actual
-pipeline/lifecycle stage definitions; do not hardcode customer or deal IDs.
-Match a company independently of the contact, then inspect associated open
-deals and account ownership. A net-new contact at a customer is not a net-new
-prospect. An empty owner property and a failed owner lookup are different states.
+## Executable rubric
 
-Apply routing in this order:
+`harvest_pipeline.py qualify` evaluates supplied criterion decisions and applies
+relationship guards offline. It does not independently research or judge the
+truth of the evidence; that remains the agent/reviewer's work.
 
-1. Opt-out, complaint, competitor, own team, hard exclusion → `exclude`.
-2. Customer, active opportunity or protected lifecycle → `notify_only`.
-3. Unresolved identity, stale/missing CRM or suppression check, conflicting
-   territory/owners, insufficient fit evidence → `hold`.
-4. Known account owner or contact owner → `owner_review`. Preserve both owner
-   IDs; conflicts need resolution. Do not enroll into somebody else's sequence.
-5. Recent contact, existing campaign membership or re-approach cooldown → `hold`.
-6. Reviewed ICP fit, clear suppression checks, unowned account/contact and
-   agreed sender/territory → `outreach_draft`.
+```json
+{
+  "version": "approved-icp-v1",
+  "criteria": [
+    {"id": "company_size", "dimension": "company", "mandatory": true, "weight": 1},
+    {"id": "current_role", "dimension": "persona", "mandatory": true, "weight": 1}
+  ],
+  "company_threshold": 0.75,
+  "persona_threshold": 0.75,
+  "check_max_age_hours": 24
+}
+```
 
-Carry `route`, `route_reason`, CRM match method, both owners, account/contact
-lifecycle, open-deal count, campaign memberships, last outreach date,
-`crm_checked_at` and `suppressions_checked_at` in `routing.csv`. Unknown is never
-equivalent to zero open deals. Notify-only and owner-review outputs are local
-handoffs until the user authorizes CRM tasks or messages.
+Weights and thresholds above are illustrative; approve them for the client.
+Each input person has `person_id`, resolved `profile_url`, `source_posts`,
+`rubric_version`, `reviewed`, `sender`, and a `criteria` object keyed by criterion
+ID. Each criterion has `status` (`pass`, `fail`, `unknown`) and `evidence` entries
+with `source_url`, `observed_at` and the supported `value`. An unsupported pass
+becomes unknown. The result preserves weighted score, maximum, known weight,
+status and evidence separately for company and persona. Changed rubric versions
+require rescoring, and the output has an input/rubric hash for cache identity.
 
-Review the initial probe row by row. Record fit precision, ambiguous identity
-rate and excluded/held counts. Agree the expansion threshold before scaling.
-Keep the same rubric across comparison cohorts; version intentional changes.
+The `checks` object contains explicit booleans for `opt_out`, `competitor`,
+`internal`, `hard_exclusion`, `recent_outreach`, `campaign_member`, `owner_conflict`
+and `ownership_resolved`; `lifecycle` (`prospect`, `customer`, `protected`);
+`open_deals` (integer, never null when known); `account_owner` and `contact_owner`
+(explicit null when confirmed unowned); `crm_checked_at`, `suppressions_checked_at`
+and supporting `evidence_ids`. Unknown fields stay unknown, not false/zero.
+
+```bash
+python <skill-path>/scripts/harvest_pipeline.py qualify \
+  --people .gtm/linkedin-engagement/qualification-input.json \
+  --rubric .gtm/linkedin-engagement/approved-rubric.json \
+  --out .gtm/linkedin-engagement/qualification.json
+```
+
+## Relationship decisions
+
+Read the client's CRM property mapping and stage meanings. Match the account
+independently from the person and inspect associated deals and activities.
+An empty owner property and a failed owner lookup are different states.
+
+- Opt-out, complaint, competitor, own team or hard exclusion → `exclude`.
+- Customer, active opportunity or protected lifecycle → `notify_only`.
+- Failed mandatory company/persona criterion → `exclude`.
+- Missing identity/post, mandatory unknown, changed rubric, stale/incomplete CRM
+  or DNC evidence, conflicting owners/territory → `hold`.
+- Owned account/contact → `owner_review`; prepare a post-linked owner handoff.
+- Existing campaign, recent outreach or re-approach cooldown → `hold`.
+- Reviewed unowned fit with sender and complete checks → `outreach_draft`.
+
+Owner and customer handoffs are local artifacts until the session authorizes
+actual CRM tasks/messages. `enrollment_ready` remains false even for a draft:
+paused staging, sender/copy checks and provider verification are separate steps.
+
+Review the first small sample row by row. Measure fit precision, identity
+ambiguity and held/excluded counts. Use the same rubric for comparison cohorts;
+version intentional changes and refresh CRM/DNC immediately before staging.

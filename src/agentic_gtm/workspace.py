@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import shutil
 from importlib.resources import files
 from pathlib import Path
+
+from . import __version__
 
 DIRECTORIES = (
     "context",
@@ -23,7 +27,7 @@ DIRECTORIES = (
 
 ROUTER = """# Agent router
 
-For LinkedIn post engagers use `linkedin-engager-outreach` for collection, ICP scoring and outreach handoff.
+For LinkedIn founder, company and employee posts or their engagers use `linkedin-engager-outreach` for discovery, collection, ICP scoring and outreach handoff.
 
 Start every session with the `gtm-kickoff` skill. It runs `gtm doctor` and `gtm --json next`,
 explains which stage the workspace is in, and routes to the right skill from `{skills}`.
@@ -184,6 +188,7 @@ SUPABASE_DB_URL=
 
 # Provider credentials; set only what your selected workflows use.
 HUBSPOT_ACCESS_TOKEN=
+HARVEST_API_KEY=
 AI_ARK_API_KEY=
 BLITZAPI_API_KEY=
 LEMLIST_API_KEY=
@@ -290,6 +295,13 @@ def initialize_workspace(target: Path, *, overwrite: bool = False) -> list[str]:
 
     for agent in (".agents", ".claude"):
         copy_tree(source, target / agent / "skills")
+    copy_tree(files("agentic_gtm").joinpath("sql"), target / "supabase" / "migrations")
+    manifest = target / ".generated.json"
+    if not manifest.exists():
+        manifest.write_text(json.dumps({
+            "generator": "gtm init", "source_version": __version__,
+            "files": {relative: hashlib.sha256((target / relative).read_bytes()).hexdigest() for relative in sorted(created)},
+        }, indent=2) + "\n", encoding="utf-8")
     return created
 
 

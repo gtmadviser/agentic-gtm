@@ -43,3 +43,27 @@ positive replies, meetings and opportunities separately. Report acceptance per
 invite and replies per person messaged. Do not pool LinkedIn invitation counts
 with email sends. Record unknown outcomes as unknown, not zero. Attribution
 links outcomes to the person, campaign, cohort and original engagement evidence.
+
+## Founder/company/employee motion
+
+Keep the source kind and exact post per recipient. A person found through an
+employee repost did not necessarily engage a founder-authored original. Multiple
+voices or comments can help prioritize review, but never change mandatory fit.
+
+Separate owned-account handoffs from the net-new/unassigned sequence. An owner
+handoff contains the person, company, post, engagement and supported reason to
+follow up. Create a new campaign within the accepted asset scope for the net-new
+motion; never edit a rep's existing campaign as part of this playbook.
+
+If the company's accepted experiment uses a bare invitation, send no note in
+that step and put the accurate warm anchor in the message after acceptance.
+Use a different branch for an existing connection. Invitation notes versus bare
+invites, delays, bumps, soft closes and withdrawals are experiment choices, not
+universal defaults. Do not automate withdrawals without explicit scope and
+verified provider support. A rep-owned account never becomes unowned merely
+because a new contact was discovered there.
+
+A staged pack should record `source_kind`, `post_url`, `company_fit`, `persona_fit`,
+`route`, `account_owner`, `contact_owner`, `sender`, `territory`, `relationship_state`,
+`invite_variant`, exact message text, accepted delays, and the stop conditions.
+Preserve the initial reviewed sample and recipe/ICP revision beside the pack.

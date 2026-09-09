@@ -48,7 +48,7 @@ Without those two variables the CLI keeps CSV tables and JSON plans under `.gtm/
 | crm | `inspect-crm` | field-map confirmation, won/lost/open analysis |
 | experiment | `design-gtm-experiment` | preregistration template, sample sizes, hypothesis register, learnings log |
 | audience | `source-tam` | sourcing waterfall, signal schema, mandatory filters, suppression, credit approval, vendor evaluation |
-| audience / reach | `linkedin-engager-outreach` | Harvest post collection, identity dedupe, evidence-based ICP scoring, CRM routing and LinkedIn handoff |
+| audience / reach | `linkedin-engager-outreach` | Founder/company/employee post discovery, cached Harvest collection, separate company/persona fit, CRM routing and LinkedIn handoff |
 | audience | `research-accounts` | signal playbooks, personalization tiers, context-variable pattern |
 | copy | `write-outreach` | copy rules, subject lines, follow-ups, variables and spintax, DACH pack, anti-slop gate and eval, review rubric |
 | reach | `stage-campaign` | campaign structure, pre-launch checklist, draft schema, plan then apply |
@@ -89,7 +89,7 @@ Add global `--json` before the command for stable machine-readable output. `gtm 
 - Apply commands require an explicit plan ID, support `--dry-run`, and reject changed, expired, or already-applied plans.
 - Sequencer adapters only create paused campaigns. There is no send or activate command.
 - Because both sequencer APIs may return a new empty shell as running, adapters pause the shell before adding any sequence content. They never add contacts. A failed pause aborts and reports the empty shell ID.
-- Skills require a reviewed budget before paid sourcing. The Harvest helper enforces an explicit post/request plan; AI Ark and Blitz CLI sourcing still require the operator to review the dry run and budget before execution.
+- Skills require a reviewed budget before paid sourcing. The version-2 Harvest helper enforces an immutable stage plan and reserves request/cost bounds before calls; AI Ark and Blitz CLI sourcing still require the operator to review the dry run and budget before execution.
 - `gtm init` installs a pre-commit secret guard that blocks `.env` values, credential literals and spreadsheets, and a Claude Code Stop hook that flags uncommitted work.
 - Secrets are read from environment variables, never CLI flags.
 
@@ -121,8 +121,15 @@ The free system is fully functional.
 ### LinkedIn post engagers
 
 Use [`linkedin-engager-outreach`](skills/linkedin-engager-outreach/SKILL.md) for
-Harvest post reactions/comments → deduplicated people → ICP scoring → CRM
-ownership and suppression checks → reviewed LinkedIn outreach. The included
-helper supports bounded paid collection and offline normalization. Raw lists and
+Founder/company/reviewed-employee posts → Harvest engagement → deduplicated
+people → separate company/persona fit → CRM ownership and suppression checks →
+reviewed LinkedIn outreach. The helper supports roster and post discovery,
+selective profile/company enrichment, a shared cache/cost ledger and offline
+normalization, seen-event reconciliation and qualification guards. Raw lists and
 comments stay under `.gtm/linkedin-engagement/`; no client data is bundled.
 See the [workflow guide](docs/linkedin-engager-outreach.md).
+
+
+Skill regression cases live in [`evals/`](evals/linkedin-engager-outreach/README.md).
+See [enrichment, checkpoints and starter upgrades](docs/enrichment-and-starter-upgrade.md)
+for migration requirements and the current execution boundaries.

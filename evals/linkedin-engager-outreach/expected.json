@@ -1,0 +1,77 @@
+{
+  "eligible": {
+    "route": "outreach_draft",
+    "enrollment_ready": false,
+    "external_actions": []
+  },
+  "customer-new-contact": {
+    "route": "notify_only",
+    "enrollment_ready": false,
+    "external_actions": []
+  },
+  "open-deal": {
+    "route": "notify_only",
+    "enrollment_ready": false,
+    "external_actions": []
+  },
+  "owned-account": {
+    "route": "owner_review",
+    "enrollment_ready": false,
+    "external_actions": []
+  },
+  "unknown-size": {
+    "route": "hold",
+    "enrollment_ready": false,
+    "external_actions": []
+  },
+  "unsupported-score": {
+    "route": "hold",
+    "enrollment_ready": false,
+    "external_actions": []
+  },
+  "wrong-persona": {
+    "route": "exclude",
+    "enrollment_ready": false,
+    "external_actions": []
+  },
+  "opt-out": {
+    "route": "exclude",
+    "enrollment_ready": false,
+    "external_actions": []
+  },
+  "stale-crm": {
+    "route": "hold",
+    "enrollment_ready": false,
+    "external_actions": []
+  },
+  "unknown-deals": {
+    "route": "hold",
+    "enrollment_ready": false,
+    "external_actions": []
+  },
+  "existing-campaign": {
+    "route": "hold",
+    "enrollment_ready": false,
+    "external_actions": []
+  },
+  "icp-revision": {
+    "route": "hold",
+    "enrollment_ready": false,
+    "external_actions": []
+  },
+  "untrusted-comment": {
+    "route": "notify_only",
+    "enrollment_ready": false,
+    "external_actions": []
+  },
+  "internal-alias": {
+    "route": "exclude",
+    "enrollment_ready": false,
+    "external_actions": []
+  },
+  "owner-conflict": {
+    "route": "hold",
+    "enrollment_ready": false,
+    "external_actions": []
+  }
+}

@@ -21,6 +21,9 @@ from ..config import Settings, env_value, has_supabase, load_settings
 from ..contracts import CampaignDraft, CampaignMetrics
 from ..database import Store, open_store
 from ..safety import assert_plan_can_apply, make_plan, redact
+from ..safety.checkpoints import review_record, verify_review, write_review
+from ..starter import health as starter_health
+from ..starter import upgrade_plan
 from ..workflows import run_demo
 from ..workflows.metrics import (
     CSV_COLUMNS,
@@ -47,6 +50,8 @@ report_app = typer.Typer(no_args_is_help=True)
 slack_app = typer.Typer(no_args_is_help=True)
 stack_app = typer.Typer(no_args_is_help=True)
 metrics_app = typer.Typer(no_args_is_help=True)
+starter_app = typer.Typer(no_args_is_help=True)
+checkpoint_app = typer.Typer(no_args_is_help=True)
 app.add_typer(db_app, name="db")
 app.add_typer(sync_app, name="sync")
 app.add_typer(campaign_app, name="campaign")
@@ -55,6 +60,8 @@ app.add_typer(report_app, name="report")
 report_app.add_typer(slack_app, name="slack")
 app.add_typer(stack_app, name="stack")
 app.add_typer(metrics_app, name="metrics")
+app.add_typer(starter_app, name="starter")
+app.add_typer(checkpoint_app, name="checkpoint")
 console = Console()
 
 CREDENTIALS = {
@@ -64,6 +71,7 @@ CREDENTIALS = {
     "lemlist": "LEMLIST_API_KEY",
     "instantly": "INSTANTLY_API_KEY",
     "slack": "SLACK_BOT_TOKEN|SLACK_WEBHOOK_URL",
+    "harvest": "HARVEST_API_KEY",
 }
 METRICS_CONFLICT = "provider,campaign_id,variant,kind,unit,window_start,window_end"
 
@@ -225,8 +233,34 @@ def doctor(ctx: typer.Context, config: Path = typer.Option(Path("gtm.yaml"))) ->
             "migrations_ready": bool(env_value("SUPABASE_DB_URL")),
         },
         "capabilities": capabilities,
+        "starter": starter_health(settings.workspace_root),
     }
     emit(ctx, result, title="Agentic GTM doctor")
+
+
+@starter_app.command("check")
+def check_starter(ctx: typer.Context, workspace: Path = Path(".")) -> None:
+    emit(ctx, starter_health(workspace))
+
+
+@starter_app.command("upgrade-plan")
+def plan_starter_upgrade(ctx: typer.Context, candidate: Path, workspace: Path = Path(".")) -> None:
+    """Compare a generated candidate with the installed baseline and client edits."""
+    emit(ctx, upgrade_plan(workspace, candidate))
+
+
+@checkpoint_app.command("record")
+def checkpoint_record(ctx: typer.Context, artifact: list[str] = typer.Option(...), recipe_version: str = typer.Option(...), reviewer: str = typer.Option(...), out: Path = typer.Option(...), workspace: Path = Path(".")) -> None:
+    """Record an already-performed review of concrete sample artifacts."""
+    record = review_record(workspace, artifact, recipe_version, reviewer)
+    write_review(out, record)
+    emit(ctx, {"sha256": record["sha256"], "artifacts": len(artifact), "path": str(out)})
+
+
+@checkpoint_app.command("verify")
+def checkpoint_verify(ctx: typer.Context, checkpoint: Path, accepted_hash: str = typer.Option(...), recipe_version: str = typer.Option(...), workspace: Path = Path(".")) -> None:
+    verify_review(workspace, json.loads(checkpoint.read_text()), accepted_hash, recipe_version)
+    emit(ctx, {"valid": True, "external_actions": []})
 
 
 @app.command("next")

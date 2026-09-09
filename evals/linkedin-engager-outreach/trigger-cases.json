@@ -1,0 +1,26 @@
+[
+  {
+    "prompt": "Get engagers from our founder, company and current employees posts using Harvest, then qualify and prepare LI outreach.",
+    "should_trigger": true
+  },
+  {
+    "prompt": "Finish the full founder/company/employee LinkedIn playbook.",
+    "should_trigger": true
+  },
+  {
+    "prompt": "Who commented on these three LinkedIn posts?",
+    "should_trigger": true
+  },
+  {
+    "prompt": "Write three LinkedIn posts in my voice.",
+    "should_trigger": false
+  },
+  {
+    "prompt": "Scrape everyone following this competitor.",
+    "should_trigger": false
+  },
+  {
+    "prompt": "Import this CSV of weekly campaign results.",
+    "should_trigger": false
+  }
+]
