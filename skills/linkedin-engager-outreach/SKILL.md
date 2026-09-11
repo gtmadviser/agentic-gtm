@@ -39,7 +39,7 @@ one explicit post into a scrape of every employee's history.
    stage with keyword queries, then review the ranked candidates: keyword search is
    fuzzy and returns unrelated senses of a word. Attach source voices to the posts
    you keep before any engagement spend. Discovery complements the roster rather
-   than replacing it — a post that never names the event in text will not surface.
+   than replacing it: a post that never names the event in text will not surface.
 4. **Prepare the employee expansion.** Use company-scoped employee search, then
    bounded profile enrichment where needed to inspect current roles. Advisors,
    investors, former staff and ambiguous multiple roles require review. A search
