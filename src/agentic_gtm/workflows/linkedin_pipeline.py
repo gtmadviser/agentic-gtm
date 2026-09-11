@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -32,12 +33,16 @@ from .linkedin_engagers import (
 from .qualification import qualify
 
 ENDPOINTS = {
+    "discovery": {"post-search"},
     "employees": {"profile-search"},
     "posts": {"company-posts", "profile-posts"},
     "engagement": {"post-reactions", "post-comments"},
     "profiles": {"profile"},
     "companies": {"company"},
 }
+
+# Stages whose items are keyword queries rather than LinkedIn URLs.
+QUERY_STAGES = {"discovery"}
 
 
 def company_url(value: str) -> str:
@@ -49,7 +54,7 @@ def company_url(value: str) -> str:
 
 class CollectionSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    stage: Literal["employees", "posts", "engagement", "profiles", "companies"]
+    stage: Literal["discovery", "employees", "posts", "engagement", "profiles", "companies"]
     client_id: str = Field(min_length=1)
     account_scope: str = Field(min_length=1)
     items: list[dict] = Field(min_length=1, max_length=1000)
@@ -77,7 +82,7 @@ class CollectionSpec(BaseModel):
             )
         if any(type(price) is not int or price <= 0 for price in self.prices_microusd.values()):
             raise ValueError("Endpoint prices must be positive integers in micro-USD")
-        if self.stage == "posts":
+        if self.stage in ("posts", "discovery"):
             if not self.published_since or not self.published_until:
                 raise ValueError(
                     "Post discovery requires explicit published_since and published_until"
@@ -88,6 +93,22 @@ class CollectionSpec(BaseModel):
                 raise ValueError("Post window must be increasing")
         seen = set()
         for row in self.items:
+            if self.stage in QUERY_STAGES:
+                query = (row.get("query") or "").strip()
+                if not query:
+                    raise ValueError("Discovery items need a non-empty query")
+                row["query"] = query
+                # post-search is fuzzy and matches unrelated senses of a word, so its
+                # output is a review queue, never an approved source list.
+                if row.get("approved") is True:
+                    raise ValueError(
+                        "Discovery output must be reviewed after collection; "
+                        "do not pre-approve a search query"
+                    )
+                if query in seen:
+                    raise ValueError("Duplicate discovery query; merge them before planning")
+                seen.add(query)
+                continue
             if self.stage in ("employees", "companies"):
                 row["url"] = company_url(row["url"])
             elif self.stage == "profiles":
@@ -197,7 +218,12 @@ def collect_stage(
         pages = run / "pages"
         pages.mkdir(exist_ok=True)
         rows, quarantined, coverage = {}, [], []
-        raw_records = 0
+        # max_records is budgeted per (source, endpoint) so that a high-volume endpoint
+        # cannot starve a co-requested one. Reactions page at 100/page and comments at
+        # 100/page: a shared counter let reactions consume the whole cap and leave the
+        # higher-signal comments with zero pages.
+        records: dict[tuple[str, str], int] = {}
+        total_records = 0
         state = {
             "plan_hash": approval,
             "complete": False,
@@ -251,7 +277,9 @@ def collect_stage(
             )
         try:
             for item in items:
-                if spec.stage == "employees":
+                if spec.stage == "discovery":
+                    jobs = [("post-search", {"search": item["query"]})]
+                elif spec.stage == "employees":
                     jobs = [("profile-search", {"currentCompany": item["url"]})]
                 elif spec.stage == "posts":
                     jobs = (
@@ -268,16 +296,19 @@ def collect_stage(
                     jobs = [("profile", {"url": item["url"], "main": "true"})]
                 else:
                     jobs = [("company", {"url": item["url"]})]
+                source_key = item["query"] if spec.stage in QUERY_STAGES else item["url"]
                 for endpoint, query in jobs:
                     status = {
-                        "source_url": item["url"],
+                        "source_url": source_key,
                         "endpoint": endpoint,
                         "complete": False,
                         "pages": 0,
                     }
                     coverage.append(status)
+                    budget_key = (source_key, endpoint)
+                    records.setdefault(budget_key, 0)
                     page, token, signatures = 1, None, set()
-                    while page <= spec.max_pages and raw_records < spec.max_records:
+                    while page <= spec.max_pages and records[budget_key] < spec.max_records:
                         params = {**query}
                         if spec.stage not in ("profiles", "companies"):
                             params["page"] = page
@@ -294,7 +325,8 @@ def collect_stage(
                                 ),
                                 "observed_at": saved["observed_at"],
                             }
-                            raw_records += 1
+                            records[budget_key] += 1
+                            total_records += 1
                             status["complete"] = True
                             break
                         elements = data.get("elements")
@@ -305,10 +337,73 @@ def collect_stage(
                             raise ValueError("Repeated provider page; collection is incomplete")
                         signatures.add(signature)
                         for row in elements:
-                            if raw_records >= spec.max_records:
+                            if records[budget_key] >= spec.max_records:
                                 break
-                            raw_records += 1
-                            if spec.stage == "posts":
+                            records[budget_key] += 1
+                            total_records += 1
+                            if spec.stage == "discovery":
+                                stamp = (row.get("postedAt") or {}).get("timestamp")
+                                if (
+                                    not isinstance(stamp, (float, int))
+                                    or isinstance(stamp, bool)
+                                    or stamp <= 0
+                                ):
+                                    quarantined.append(
+                                        {
+                                            "reason": "missing_post_date",
+                                            "source_query": item["query"],
+                                            "record": row,
+                                        }
+                                    )
+                                    continue
+                                published = datetime.fromtimestamp(stamp / 1000, UTC)
+                                if not spec.published_since <= published < spec.published_until:
+                                    continue
+                                try:
+                                    url = post_url(row["linkedinUrl"])
+                                except (KeyError, ValueError):
+                                    quarantined.append(
+                                        {
+                                            "reason": "invalid_post_url",
+                                            "source_query": item["query"],
+                                            "record": row,
+                                        }
+                                    )
+                                    continue
+                                author = row.get("author") or {}
+                                reactions = row.get("engagement", {}).get("reactions") or []
+                                candidate = rows.setdefault(
+                                    url,
+                                    {
+                                        "url": url,
+                                        "published_at": published.isoformat(),
+                                        "author_name": author.get("name"),
+                                        "author_url": author.get("linkedinUrl"),
+                                        "author_headline": author.get("position"),
+                                        "author_type": (
+                                            "company"
+                                            if "/company/" in (author.get("linkedinUrl") or "")
+                                            else "person"
+                                        ),
+                                        "reactions": sum(
+                                            int(entry.get("count") or 0)
+                                            for entry in reactions
+                                            if isinstance(entry, dict)
+                                        ),
+                                        "comments": int(
+                                            row.get("engagement", {}).get("comments") or 0
+                                        ),
+                                        "is_repost": bool(row.get("repost") or row.get("repostId")),
+                                        "queries": [],
+                                        # A fuzzy search hit is a candidate, never a source.
+                                        # Review, then feed selected rows to the engagement
+                                        # stage with explicit sources.
+                                        "approved": False,
+                                    },
+                                )
+                                if item["query"] not in candidate["queries"]:
+                                    candidate["queries"].append(item["query"])
+                            elif spec.stage == "posts":
                                 stamp = (row.get("postedAt") or {}).get("timestamp")
                                 if (
                                     not isinstance(stamp, (float, int))
@@ -374,14 +469,14 @@ def collect_stage(
                         total = int(pagination["totalPages"])
                         if total < 0:
                             raise ValueError("Invalid pagination total")
-                        if page >= total and raw_records < spec.max_records:
+                        if page >= total and records[budget_key] < spec.max_records:
                             status["complete"] = True
                             break
                         token = pagination.get("paginationToken")
                         page += 1
                     if not status["complete"]:
                         status["reason"] = (
-                            "record_cap" if raw_records >= spec.max_records else "page_cap"
+                            "record_cap" if records[budget_key] >= spec.max_records else "page_cap"
                         )
             state["complete"] = all(row["complete"] for row in coverage)
         except Exception:
@@ -393,10 +488,23 @@ def collect_stage(
                 requests=summary["requests"],
                 reserved_microusd=summary["reserved_microusd"],
                 cost_source="accepted_upper_bound",
+                records_collected=total_records,
+                max_records_per_source_endpoint=spec.max_records,
             )
             write_json(run / "state.json", state)
             if spec.stage != "engagement":
-                write_json(run / f"{spec.stage}.json", list(rows.values()))
+                collected = list(rows.values())
+                if spec.stage == "discovery":
+                    # Highest-reach candidates first so a reviewer reads the posts that
+                    # actually carried the announcement before the long fuzzy tail.
+                    collected.sort(
+                        key=lambda row: (
+                            -row.get("reactions", 0),
+                            -row.get("comments", 0),
+                            row["url"],
+                        )
+                    )
+                write_json(run / f"{spec.stage}.json", collected)
             write_json(run / "discovery-quarantine.json", quarantined)
             if own_client:
                 client.close()
@@ -506,6 +614,94 @@ def reconcile_seen(run: Path, ledger_path: Path) -> dict:
     }
 
 
+def export_review_sheet(run: Path, out: Path, qualified: Path | None = None) -> dict:
+    """Join people + events into one review-ready row per person.
+
+    people.csv flattens every interaction to the bare word "reaction" and carries no
+    comment text, so it cannot be reviewed or handed on as a deliverable. This keeps the
+    reaction type, the per-post detail and the verbatim comment, resolves the current
+    role, and leaves the judgment columns blank: the rubric decides route, a human writes
+    the rationale. Nothing here invents a reason a lead is a fit.
+    """
+    people = read_json(run / "people.json")
+    events = read_json(run / "events.json")
+    verdicts = {}
+    if qualified:
+        for row in read_json(qualified):
+            key = row.get("person_id") or row.get("profile_url")
+            if key:
+                verdicts[key] = row
+    by_person: dict[str, list[dict]] = {}
+    for event in events:
+        by_person.setdefault(event["person_id"], []).append(event)
+    rows = []
+    for person in people:
+        mine = sorted(
+            by_person.get(person["person_id"], []),
+            key=lambda event: (event.get("post_url") or "", event.get("type") or ""),
+        )
+        detail, comments = [], []
+        for event in mine:
+            label = event.get("reaction_type") or event.get("type") or "unknown"
+            detail.append(f"{label.lower()} on {event.get('post_url')}")
+            text = (event.get("comment") or "").strip()
+            if text:
+                comments.append(" ".join(text.split()))
+        roles = person.get("current_roles") or []
+        role = roles[0] if isinstance(roles, list) and roles else {}
+        verdict = verdicts.get(person["person_id"], {})
+        rows.append(
+            {
+                "name": person.get("name"),
+                "current_title": role.get("position") or "",
+                "current_company": role.get("companyName") or "",
+                "current_company_url": role.get("companyLinkedinUrl") or "",
+                "headline": person.get("headline") or "",
+                "profile_url": person.get("profile_url"),
+                "num_posts": len(person.get("source_posts") or []),
+                "num_comments": len(comments),
+                "interactions": "; ".join(detail),
+                "comments_verbatim": " || ".join(comments),
+                "source_kinds": ", ".join(person.get("source_kinds") or []),
+                "is_internal": person.get("is_internal", False),
+                "role_verified": bool(role),
+                "route": verdict.get("route", ""),
+                "company_fit": verdict.get("company_fit", ""),
+                "persona_fit": verdict.get("persona_fit", ""),
+                # Deliberately blank: a human writes these after reading the evidence.
+                "tier": "",
+                "why_person": "",
+                "why_company": "",
+                "next_step": "",
+            }
+        )
+    rows.sort(key=lambda row: (-row["num_comments"], -row["num_posts"], row["name"] or ""))
+    ignore_artifacts(out)
+    with out.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]) if rows else ["name"])
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(
+                {
+                    key: (
+                        "'" + value
+                        if isinstance(value, str)
+                        and value.startswith(("=", "+", "-", "@", "\t", "\r"))
+                        else value
+                    )
+                    for key, value in row.items()
+                }
+            )
+    return {
+        "rows": len(rows),
+        "with_comments": sum(row["num_comments"] > 0 for row in rows),
+        "role_verified": sum(row["role_verified"] for row in rows),
+        "internal_excluded": sum(row["is_internal"] for row in rows),
+        "out": str(out),
+        "paid_calls": 0,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -539,6 +735,14 @@ def main():
     qualification.add_argument("--people", type=Path, required=True)
     qualification.add_argument("--rubric", type=Path, required=True)
     qualification.add_argument("--out", type=Path, required=True)
+    sheet = commands.add_parser(
+        "export", help="Join people + events into a review-ready CSV deliverable"
+    )
+    sheet.add_argument("--run", type=Path, required=True)
+    sheet.add_argument("--out", type=Path, required=True)
+    sheet.add_argument(
+        "--qualified", type=Path, help="Optional qualify output to merge routes from"
+    )
     args = parser.parse_args()
     try:
         if args.command == "plan":
@@ -566,6 +770,8 @@ def main():
             )
         elif args.command == "normalize":
             result = normalize(args.run, args.profiles, args.internal_roster)
+        elif args.command == "export":
+            result = export_review_sheet(args.run, args.out, args.qualified)
         elif args.command == "roster":
             rows = classify_roster(
                 read_json(args.employees), read_json(args.profiles), args.company

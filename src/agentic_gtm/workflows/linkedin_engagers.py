@@ -246,6 +246,11 @@ def normalize(run, profiles_path=None, internal_roster=None):
             for key in keys[1:]:
                 aliases[root(key)] = root(keys[0])
 
+        # max_records is budgeted per (post, endpoint), matching how collect_stage spends
+        # it. A shared counter here would discard records the fetch stage legitimately
+        # paid for, silently dropping commenters behind high-volume reactions.
+        cap = plan["payload"].get("max_records", float("inf"))
+        counts: dict[tuple[str, str], int] = {}
         record_count = 0
         capped = False
         for path in sorted((run / "pages").glob("*.json")):
@@ -253,10 +258,13 @@ def normalize(run, profiles_path=None, internal_roster=None):
             if page["post_url"] not in plan["payload"]["posts"]:
                 raise ValueError("Cached page is outside the approved post list")
             kind = "reaction" if page["endpoint"] == "post-reactions" else "comment"
+            budget_key = (page["post_url"], page["endpoint"])
+            counts.setdefault(budget_key, 0)
             for item, event_kind in flatten(page["response"]["elements"], kind):
-                if record_count >= plan["payload"].get("max_records", float("inf")):
+                if counts[budget_key] >= cap:
                     capped = True
                     break
+                counts[budget_key] += 1
                 record_count += 1
                 actor = item.get("actor") or {}
                 if actor.get("author") is True:

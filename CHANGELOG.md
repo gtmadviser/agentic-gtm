@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Add a `discovery` stage wrapping Harvest `post-search`, so engagement collection is
+  no longer limited to the approved company/founder/employee roster. An announcement is
+  also carried by investors and press, whose posts reach buyers the roster's own posts
+  never touch. Candidates are written `approved: false` and ranked by reach; keyword
+  search is fuzzy, so review is required before any engagement spend.
+- Budget `max_records` per (source, endpoint) instead of once per run. A shared counter
+  let `post-reactions` consume the whole cap and leave `post-comments` with zero pages,
+  silently dropping the higher-signal commenters. `normalize` now applies the cap the
+  same way rather than discarding records the fetch stage paid for.
+- Add `export`, which joins people and events into a review-ready sheet keeping the
+  specific reaction type, per-post interaction detail and verbatim comments, with the
+  rationale columns left blank for a human to fill.
+- Skip skill-resource `force_include` for editable wheels. It materialised a real
+  `site-packages/agentic_gtm/resources/` tree with no `__init__.py`, which was picked up
+  as a namespace portion for `agentic_gtm` and shadowed the source package: importing
+  `agentic_gtm` succeeded while `agentic_gtm.workflows` raised `ModuleNotFoundError`.
+
 - Extend the LinkedIn playbook from explicit posts to founder/company/employee
   discovery, reviewed current-role rosters, selective enrichment and routed outreach.
 - Add client/account-scoped enrichment cache, atomic paid-call reservations and

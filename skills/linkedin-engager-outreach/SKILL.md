@@ -33,45 +33,52 @@ one explicit post into a scrape of every employee's history.
    selected founders/key voices. Preserve voice identity, source type, post URL,
    post publication date and repost context. Count actual posts before expanding
    engagement spend. Zero posts is a valid result.
-3. **Prepare the employee expansion.** Use company-scoped employee search, then
+3. **Search for the posts the roster cannot reach.** For an announcement (funding,
+   launch, award), investors, press pages and industry accounts carry it too and
+   often reach buyers the roster's own posts never touched. Run the `discovery`
+   stage with keyword queries, then review the ranked candidates: keyword search is
+   fuzzy and returns unrelated senses of a word. Attach source voices to the posts
+   you keep before any engagement spend. Discovery complements the roster rather
+   than replacing it — a post that never names the event in text will not surface.
+4. **Prepare the employee expansion.** Use company-scoped employee search, then
    bounded profile enrichment where needed to inspect current roles. Advisors,
    investors, former staff and ambiguous multiple roles require review. A search
    hit or company name in a headline is not proof of current core employment.
    Review the roster before fetching employee posts; dedupe seed/employee aliases.
-4. **Use an explicit date window.** Scan all accepted pages; an old pinned post
+5. **Use an explicit date window.** Scan all accepted pages; an old pinned post
    does not prove that later pages contain no recent posts. Quarantine missing
    dates. Founder/company/employee ordering is a configurable collection priority,
    not an ICP score or a universal intent ranking.
 
 ## Collect and qualify
 
-5. **Plan each bounded stage offline.** Use `harvest_pipeline.py plan`. The plan
+6. **Plan each bounded stage offline.** Use `harvest_pipeline.py plan`. The plan
    snapshots inputs, limits, price basis and optional reviewed sample checkpoint.
    `fetch --approve <hash>` applies that exact scope. Existing authorization is
    sufficient when it covers the concrete plan; otherwise obtain it before spending.
-6. **Collect engagements.** Fetch paginated reactions/comments and returned
+7. **Collect engagements.** Fetch paginated reactions/comments and returned
    replies. Reuse fresh client/account-scoped cache entries. A pending or uncertain
    paid call blocks replay, including in a new run. Page/record/budget caps remain
    visible; separately paginated replies are not claimed complete.
-7. **Normalize and reconcile.** Merge by provider ID and verified URL aliases,
+8. **Normalize and reconcile.** Merge by provider ID and verified URL aliases,
    never names. Keep all source voices and interactions; exclude own-team actors
    from outreach. Use the persistent seen ledger for newly observed events.
    A reaction's first observation is not its actual engagement time. A new comment
    from an existing person adds evidence, not another enrollment.
-8. **Screen cheaply, enrich selectively.** Use captured headlines for obvious
+9. **Screen cheaply, enrich selectively.** Use captured headlines for obvious
    exclusions and an inclusive shortlist. Retain unknowns for review; don't
    purchase profiles for the whole audience by default. Resolve selected opaque
    profiles and verify current roles/company, then dedupe again. Use CRM company
    facts first; enrich missing company facts or business signals only as needed.
-9. **Keep fit dimensions separate.** Apply the approved rubric through
+10. **Keep fit dimensions separate.** Apply the approved rubric through
    [scoring and routing](references/scoring-and-routing.md). Record company fit,
    persona fit, criterion evidence, unknowns and the rubric revision. Engagement
    stays separate. Missing mandatory evidence holds the person regardless of score.
-10. **Refresh relationships.** Check contact AND account lifecycle, associations,
+11. **Refresh relationships.** Check contact AND account lifecycle, associations,
     open deals, both owners, DNC/opt-outs, activities and existing campaign membership.
     Use the client's canonical relationship/suppression process when available.
     A new contact at a customer is not a new prospect. Failed lookup is not no match.
-11. **Route before drafting.** Hard exclusions → exclude; customer/open deal →
+12. **Route before drafting.** Hard exclusions → exclude; customer/open deal →
     notify-only; owned relationships → owner handoff; conflicts or missing/stale
     checks → hold; reviewed unowned fit → outreach draft. The offline `qualify`
     command enforces these guards against supplied evidence. It does not fetch
@@ -79,20 +86,20 @@ one explicit post into a scrape of every employee's history.
 
 ## Prepare and review outreach
 
-12. **Create distinct motions.** Owner handoffs carry the exact source post and
+13. **Create distinct motions.** Owner handoffs carry the exact source post and
     supported business context. Net-new/unassigned outreach gets its own reviewed
     sender/territory cohort. Never load somebody else's owned-account list into
     the new campaign. See [outreach handoff](references/outreach-handoff.md).
-13. **Use the client's tested sequence.** Bare invitations are a supported variant;
+14. **Use the client's tested sequence.** Bare invitations are a supported variant;
     when selected, place the warm post reference after acceptance. Do not replace
     an established bare-invite motion with a generic note. Existing connections
     skip the invite. Exact copy, delays and withdrawal behavior follow the
     experiment and platform capability; replies/opt-outs stop follow-up.
-14. **Review a small sample, then expand.** Inspect identities, fit, route and
+15. **Review a small sample, then expand.** Inspect identities, fit, route and
     exact copy. Record sample, rubric and recipe hashes with `gtm checkpoint`.
     An expansion plan can bind that record; changed artifacts invalidate it.
     Reuse a still-valid review instead of adding repetitive approval rituals.
-15. **Stage and measure.** Use `stage-campaign` to prepare a paused destination or
+16. **Stage and measure.** Use `stage-campaign` to prepare a paused destination or
     a documented manual import when the adapter cannot express the LinkedIn
     sequence. Verify rows, sender, schedule and conditions. Count invitations,
     acceptances, messages, human/positive replies, meetings and opportunities
@@ -104,10 +111,13 @@ one explicit post into a scrape of every employee's history.
 - Local collection: immutable plan, saved pages, events, people and seen ledger.
 - Client store: shared enrichment cache and per-run reserved-cost ledger.
 - Local decisions: qualification, routing, sample checkpoint and exact outreach pack.
+- Local handoff: `export` writes a review-ready sheet keeping reaction type, per-post
+  detail and verbatim comments, with the rationale columns blank for a human.
 - Git: reusable recipes and reviewed aggregate reports; no raw lists or client IDs.
 
-The helpers automate discovery, collection, selective enrichment, normalization,
-seen-event reconciliation and deterministic qualification/routing guards.
+The helpers automate post discovery and search, collection, selective enrichment,
+normalization, seen-event reconciliation and deterministic qualification/routing
+guards.
 Evidence interpretation, client CRM mapping, copy review and paused provider
 handoff remain explicit agent/operator work. No helper sends messages, writes
 CRM records, enrolls leads or installs a recurring job.
