@@ -80,7 +80,7 @@ Formal address needs a salutation column (`{{salutation}}` plus `{{lastName}}`).
 
 Providers vary text per recipient with spintax. Use it at the sentence level, 2-3 options, all carrying the same meaning.
 
-Instantly-style: `{{RANDOM | Quick one. | Short question. | Two lines, then I leave you alone. }}`
+Instantly-style: `{{RANDOM | Quick one. | Short question. | Two quick lines. }}`
 Fallback syntax (lemlist-style): `{{city|your area}}`. No spaces around the pipe in fallback syntax.
 
 Rules:

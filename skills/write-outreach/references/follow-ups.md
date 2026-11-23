@@ -11,6 +11,8 @@ Every follow-up must pass all three.
 Two more rules:
 - Every step stands alone. A reader who deleted step 1 must still understand step 2.
 - A follow-up never restates the features or the pain from step 1. Follow-ups that repeat features have produced zero opportunities in every set we have measured. Shift the angle.
+- **No negative or guilt-trippy framing — ever.** Never write *"eine Frage noch, dann lasse ich Sie in Ruhe"*, *"then I'll leave you alone"*, or *"last message before I stop bothering you"*. It lowers status and adds negative friction. Stay warm, confident, and peer-to-peer (e.g., *"Ich weiß, solche Nachrichten gehen im Tagesgeschäft schnell unter. Wenn Sie sehen möchten, wie modernes Board Management bei Häusern wie {{referenz}} aussieht, melden Sie sich gerne."*).
+- **Opt-out belongs in a `P.S.`, not jammed into the main body.** Keep the main email warm and conversational; put soft opt-out lines (e.g., *"P.S.: Falls das bei {{companyName}} gerade kein Thema ist, reicht ein kurzes „Nein“."*) below the sign-off.
 
 ## How many
 

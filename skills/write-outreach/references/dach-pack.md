@@ -72,6 +72,7 @@ Thirty phrases that mark a mail as template, and what to do instead.
 | game-changer, 10x | sourced figure or nothing |
 | I noticed you're hiring (generic) | name the role, link it to the problem |
 | loved your post, congrats on the raise | delete unless you can quote it |
+| eine Frage noch, dann lasse ich Sie in Ruhe / lass ich dich in Ruhe / leave you alone | never use negative or guilt-trippy framing; stay warm and peer-level ("Ich weiß, solche Nachrichten gehen im Tagesgeschäft schnell unter. Wenn … relevant ist, melden Sie sich gerne.") |
 
 ## Disarming and human phrases (German)
 

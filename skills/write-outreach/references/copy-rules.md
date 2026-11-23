@@ -31,6 +31,10 @@ Pick two or three per message. Never all of them. Each lever you add dilutes the
 | Story | narrative lowers defences | audiences with imagination; not for formal professions |
 | Autonomy | pressure creates resistance; humbling disclaimers disarm | formal audiences and follow-ups |
 
+## Two clocks
+
+The person who does the work and the person who signs measure value on different clocks. The practitioner counts hours per week: the calls nobody picked up, the manifests rewritten by hand, the Friday spent on exports. The budget owner counts calendar weeks, risk and headcount: a release cycle shortened, an incident that did not happen, a hire not needed. Pick the clock that belongs to the persona the experiment names, and write the whole message on it. A message that carries both clocks carries two angles and fails rule 4. Where the practitioner adopts and someone else pays, the practitioner's message ends with the one sentence they can forward upward, on the buyer's clock.
+
 ## Structure
 
 Three parts. Nothing else.
@@ -66,7 +70,8 @@ Verb first. Everyday words. No superlatives.
 | Disarming question | pressure removed, self-doubting | "Am I completely off here?" |
 
 Rules:
-- One CTA per message. A softer second ask in a P.S. is a test, not a default.
+- One CTA per message. Put soft opt-out lines ("Falls das bei {{companyName}} kein Thema ist, reicht ein kurzes Nein") in a `P.S.` below the signature rather than cluttering the main email body.
+- Never use negative or guilt-trippy closers ("dann lasse ich Sie in Ruhe", "then I'll leave you alone", "last time I bother you"). Stay warm, respectful, and peer-level.
 - No calendar link in touch 1. Reply with a word, a letter, or a call to a number.
 - The CTA sentence carries its own context. "Try it once" is not a CTA. "Call this number and hear it answer, free, no signup" is.
 - Campaigns with no CTA at all have performed well as pattern breakers. Worth one variant, never the control.
@@ -76,6 +81,7 @@ Rules:
 - One proof point per message, local or same-trade beats large and famous.
 - Every number has a source the recipient could ask for. Unsupported multipliers ("21x", "300 percent") are the worst performers we have seen, in every market.
 - Quote a public review verbatim if you have one. A verbatim quote cannot be argued with.
+- Proof ladder, weakest to strongest: a claim you make, a demo, a benchmark you ran, a named customer's attributed result. Write from the strongest rung you can source; do not dress a lower rung as a higher one.
 
 ## Variants
 
