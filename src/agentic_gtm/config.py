@@ -43,6 +43,10 @@ class Settings(BaseModel):
     scopes: dict[str, Any] = Field(default_factory=dict)
     field_maps: dict[str, dict[str, str]] = Field(default_factory=dict)
     artifacts: dict[str, str] = Field(default_factory=lambda: {"root": "."})
+    # People who get tagged in Slack: name, short, email, roles, optional slack_user_id.
+    team: list[dict[str, Any]] = Field(default_factory=list)
+    # Deep-link templates for Slack handoffs, e.g. links.lemlist_campaign.
+    links: dict[str, str] = Field(default_factory=dict)
     workspace_root: Path = Field(default_factory=Path.cwd, exclude=True)
 
     def resolve(self, path: Path | str) -> Path:

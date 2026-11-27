@@ -54,14 +54,14 @@ Do not use when:
 1. The review has exactly five sections in this order: what changed, evidence, decisions needed, risks, next actions. Metrics tables live inside evidence. Nothing else is a section.
 2. Every metric shows its window and the prior-window delta. A number without a window is deleted.
 3. Won, lost, and open pipeline are never combined.
-4. Every next action has one named owner and a due date. Team-owned actions are not allowed.
+4. Every next action has one named owner and a due date. Team-owned actions are not allowed. In the Slack text the owner is a mention (`@Short` from the `team` roster) and every campaign named links to the provider UI (`[[lemlist:<campaign_id>|<name>]]`).
 5. Positives with zero meetings for two consecutive weeks produce the "process gap" flag and an owner for the handoff.
 6. Bounce above 2% overall or above 5% for any sender appears in risks with a pause recommendation, even when the campaign is performing.
 7. Owner rankings use the provider owner field and show the team median; campaigns without an owner are listed as unattributed.
 8. Conflicting metrics are resolved with a stated definition or labelled unresolved. Silent selection is prohibited.
 9. Campaign conclusions cite the experiment file they belong to. A campaign without an experiment gets the note "no preregistered rule; observation only".
 10. A Slack post requires a plan ID from `report slack plan` and an explicit `report slack apply --plan <id>`. There is no other path.
-11. The review contains aggregates only. No lead names, email addresses, reply text, or provider IDs.
+11. The review contains aggregates only. No lead names, email addresses, reply text, or provider IDs of people. Campaign links are allowed and expected.
 12. Friday retrospectives apply the 21-day rule: keep a campaign at 2 times baseline or better, iterate one near baseline, kill one below 50% of baseline, and log each outcome to its experiment file.
 
 ## Checklist

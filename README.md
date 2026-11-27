@@ -31,6 +31,16 @@ gtm next                      # which stage you are in and which skill to run
 
 Then open the workspace in Claude Code or Codex and start with the `gtm-kickoff` skill. It runs `gtm next`, explains the stage model, and routes you.
 
+### Skills only
+
+The skills work without the CLI. Every skill is one folder with a `SKILL.md` and its `references/`.
+
+```bash
+/plugin marketplace add gtmadviser/agentic-gtm     # Claude Code, then: /plugin install agentic-gtm@agentic-gtm
+npx skills add gtmadviser/agentic-gtm              # skills.sh CLI, any agent that reads the Agent Skills spec
+cp -r skills/* ~/.claude/skills/                   # or copy the folders by hand
+```
+
 ### With or without a database
 
 The store is Supabase by default. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env`, run `gtm db migrate` once, and every command writes there.

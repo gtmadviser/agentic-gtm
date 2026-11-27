@@ -27,3 +27,4 @@ Ninety minutes, one operator, one person who knows the company. The outcome is a
 - "Which deal do you wish you had never taken?"
 - "What does a buyer try before they call you?"
 - "What can you not say in a cold message because it is not true yet?"
+- "Who has already raised a hand: signups, trial users, people who filed an issue, event registrants, post engagers?" A warm pool that clears the minimum sample is the first experiment; a cold list is the second.

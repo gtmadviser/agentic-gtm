@@ -68,6 +68,20 @@ class LemlistAdapter(ProviderAdapter):
     def inspect(self) -> dict[str, Any]:
         return {"provider": self.name, "campaigns": self.api.request("GET", "/campaigns")}
 
+    def team_id(self) -> str:
+        team = self.api.request("GET", "/team")
+        team_id = str(team.get("_id") or team.get("id") or "")
+        if not team_id:
+            raise AdapterError("lemlist did not return a team ID")
+        return team_id
+
+    def campaign_url(self, campaign_id: str, template: str | None = None) -> str:
+        """Deep link to the campaign in the lemlist UI, for Slack handoffs."""
+        from ...references import DEFAULT_LINK_TEMPLATES
+
+        template = template or DEFAULT_LINK_TEMPLATES["lemlist_campaign"]
+        return template.format(team_id=self.team_id(), campaign_id=campaign_id)
+
     def plan_campaign(self, draft: CampaignDraft) -> dict[str, Any]:
         if draft.provider != self.name or draft.status != "paused":
             raise AdapterError("lemlist plans must target lemlist and remain paused")

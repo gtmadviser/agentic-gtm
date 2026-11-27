@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 from datetime import UTC, datetime
 from importlib.resources import files
@@ -508,11 +509,20 @@ def campaign_apply(
         )
         return
     plan = store.claim_apply(plan_id)
+    adapter = adapter_for(plan.provider)
     try:
-        result = adapter_for(plan.provider).apply_campaign(plan)
+        result = adapter.apply_campaign(plan)
     except Exception:
         store.mark_needs_review(plan_id)
         raise
+    if result.provider_ids and hasattr(adapter, "campaign_url"):
+        try:
+            url = adapter.campaign_url(
+                result.provider_ids[0], settings.links.get(f"{plan.provider}_campaign")
+            )
+            result = result.model_copy(update={"message": f"{result.message} Open: {url}"})
+        except Exception:  # the link is a convenience; never fail a verified apply on it
+            pass
     emit(ctx, store.record_apply(result), title="Campaign apply complete")
 
 
@@ -640,6 +650,25 @@ def review_weekly(
     )
 
 
+def render_slack_references(text: str, settings: Any) -> tuple[str, list[str]]:
+    """Turn `@Alias` into Slack mentions and `[[lemlist:id|Label]]` into deep links."""
+    from ..references import resolve_mentions, resolve_provider_links, team_roster
+
+    lookup = None
+    context: dict[str, str] = {}
+    if env_value("SLACK_BOT_TOKEN", ""):
+        try:
+            lookup = adapter_for("slack").lookup_user_id
+        except Exception:
+            lookup = None
+    if "[[lemlist:" in text and env_value("LEMLIST_API_KEY", ""):
+        with contextlib.suppress(Exception):
+            context["team_id"] = adapter_for("lemlist").team_id()
+    text, unresolved_people = resolve_mentions(text, team_roster(settings), lookup)
+    text, unresolved_links = resolve_provider_links(text, settings.links, context)
+    return text, unresolved_people + unresolved_links
+
+
 @slack_app.command("plan")
 def slack_plan(
     ctx: typer.Context,
@@ -650,9 +679,10 @@ def slack_plan(
     """Create an immutable Slack report plan."""
     settings = load_settings(config)
     target = channel or env_value("SLACK_CHANNEL_ID", "").strip() or "webhook"
+    text, unresolved = render_slack_references(report_file.read_text(encoding="utf-8"), settings)
     payload = {
         "channel": target,
-        "text": report_file.read_text(encoding="utf-8"),
+        "text": text,
         "unfurl_links": False,
     }
     plan = make_plan(
@@ -666,8 +696,13 @@ def slack_plan(
     store = connected_store(ctx, settings)
     emit(
         ctx,
-        {"store": store.backend, "plan": store.create_plan(plan)},
-        title="Review this Slack plan before applying",
+        {
+            "store": store.backend,
+            "plan": store.create_plan(plan),
+            "unresolved_references": unresolved,
+        },
+        title="Review this Slack plan before applying"
+        + (" (fix unresolved mentions/links first)" if unresolved else ""),
     )
 
 

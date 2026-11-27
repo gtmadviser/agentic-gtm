@@ -72,6 +72,7 @@ Do not use it:
 | 15 | Bounce above 2 percent overall or 5 percent on one sender after launch: pause that campaign or sender the same day | monitoring rule in the handoff |
 | 16 | Recipients, emails, phone numbers, provider IDs of people stay in the store; Git gets counts and plan references | scan the campaign notes before committing |
 | 17 | The copy in the draft equals the copy file byte for byte | diff |
+| 18 | The handoff message tags the launch owner and the copy approver (`@Short` from the `team` roster) and links each staged campaign straight to the provider UI (`[[lemlist:<campaign_id>|<name>]]`, rendered by `gtm report slack plan`; `gtm campaign apply` prints the link) | every campaign named in the handoff is a link; every open decision has a tagged owner |
 
 ## Checklist
 
@@ -107,6 +108,7 @@ Do not use it:
 | apply result | store `apply_results` | created by `gtm campaign apply` |
 | recipient pool with verification status | store `contacts` | never in Git |
 | `strategy/decisions.md` | Git | one line: date, campaign, who approved the plan, who launches, when |
+| Slack handoff (draft or plan) | Slack via `gtm report slack plan` | what goes out and when, one provider-UI link per campaign, the launch owner and every person with an open decision tagged |
 
 Naming: `YYMMDD_<market>_<segment>_<angle>` for the campaign, the same slug for the files. Date prefix first so the 60-day filter can read launch dates from names if the log is missing.
 

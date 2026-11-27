@@ -35,7 +35,7 @@ Do not use when:
 1. **Fix the rules before the first search.** Write the allowed sources (company site, public profiles, job boards, press, filings, review sites, public posts), the freshness window (default 180 days for signals, 30 days for posts), and the time budget per account (default 3 minutes at list scale, 20 minutes for a single brief). Put them at the top of the run log.
 2. **Confirm the entity.** Website, public company page, normalized domain. Watch for same-name companies, wrong country, parent versus subsidiary.
 3. **Record firmographics as facts.** One line on what they do, who they sell to, size band, locations, ownership or funding stage. Each with a url and an observed date.
-4. **Hunt for the why-now.** Work through `references/signal-playbooks.md`. For each signal found, record type, url, date, and the one sentence it earns in copy. No signal found is a valid result; write it down and score urgency low.
+4. **Hunt for the why-now.** Work through `references/signal-playbooks.md`, own-product signals first when the company has any (signups, trial activity, limit hits, issues filed, event registrations). For each signal found, record type, url, date, and the one sentence it earns in copy. No signal found is a valid result; write it down and score urgency low.
 5. **Label inference.** Any pain, priority, or budget statement that is not quoted from a source is prefixed `inferred:` with the reasoning.
 6. **Map stakeholders only with evidence.** Problem owner, users, approver, blocker, internal alternative. Public role plus url where available. Do not guess names.
 7. **Score fit and urgency separately.** Fit from ICP criteria with transparent components. Urgency from signal recency and relevance. Disqualifiers override to zero. See the scoring section.
@@ -59,6 +59,7 @@ Fit and urgency are two numbers. Never blend them before ranking.
 
 | Relevance | Points |
 |---|---|
+| active use of your own product: trial, free tier, a limit hit, an issue filed | 5 |
 | direct statement of the pain your product removes | 5 |
 | active use of a tool your product replaces or extends | 4 |
 | buying trigger (funding, new leader, relevant hire, lost capacity) | 4 |
@@ -83,7 +84,7 @@ The strongest signal type for this ICP gets a 1.5 multiplier. Normalize by the t
 4. Do not infer or record protected characteristics, health, politics, religion, or private life.
 5. Missing evidence lowers confidence. It is not a zero and not a fact.
 6. Fit and urgency stay separate through ranking. A disqualifier overrides both.
-7. Freshness window default is 180 days for company signals and 30 days for posts. Older signals score 1 on recency and are never used as a why-now in copy.
+7. Freshness window default is 180 days for company signals, 30 days for posts and own-product usage, 14 days for own-product events such as a limit hit. Older signals score 1 on recency and are never used as a why-now in copy.
 8. Time budget per account at list scale is 3 minutes. Stop and score low when it runs out.
 9. Person-level research lives in the store. Git gets approved account briefs and aggregate rules only.
 10. Paid enrichment follows the credit-approval rule from `source-tam`.

@@ -7,8 +7,8 @@ from importlib.resources import files
 from typing import Any
 
 DISCLOSURE = (
-    "I have partner arrangements with some of the tools I recommend. It never changes what "
-    "I recommend, and where I have partner rates I pass the discount to you."
+    "Some links are referral links that may earn me a commission. Some also give you "
+    "extra credits or a discount. I recommend tools based on fit."
 )
 
 

@@ -62,6 +62,10 @@ Conditionals: `{"type": "conditional", "conditionKey": "linkedinInviteAccepted",
 
 Template variables: `{{firstName}}`, `{{lastName}}`, `{{companyName}}`, `{{accountSignature}}`. Fallback syntax is `{{a|b}}` with no spaces around the pipe. End emails with `{{accountSignature}}`; never hard-code a signature block.
 
+## App links
+
+Campaign deep link for Slack handoffs: `https://app.lemlist.com/teams/{team_id}/campaigns-v2/{campaign_id}` (team ID from `GET /team`). `gtm campaign apply` appends it to the apply message; override the template in `gtm.yaml` under `links.lemlist_campaign` if the UI path differs. Verify once per workspace by opening one link.
+
 ## Gotchas
 
 | Symptom | Cause | Fix | Observed |

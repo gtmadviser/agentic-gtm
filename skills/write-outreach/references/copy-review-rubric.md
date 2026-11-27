@@ -2,6 +2,16 @@
 
 Run this on every step and every variant before `stage-campaign`. Hard gates first. Any failed gate ends the review; fix and rerun. Then score 0-100.
 
+## Who runs it
+
+The author may submit the work. The author may not issue the verdict. An agent that has just written a draft is biased to ship it, and that bias is how plausible, quietly generic copy reaches an operator who has not yet seen the pool.
+
+- The review runs in a fresh context: a subagent, or a new turn that receives only this file, the pool fill rates and the drafts. It never receives the drafting conversation.
+- The reviewer reads as the recipient: skeptical, busy, able to check line 1 against their own website in 30 seconds.
+- The verdict is `PASS` or `REVISE`. `REVISE` lists one line per failed gate or weak dimension: gate or dimension id, the quoted line, the fix. Never "looks good".
+- Even on `PASS`, the reviewer names the lowest-scoring dimension and the one line it would cut first. A review that finds no weakness was not run as the reviewer.
+- After a `REVISE`, the author fixes and resubmits. The reviewer scores again from zero. The author never edits the score.
+
 | Score | Verdict |
 |---|---|
 | 85 or above | ship |
@@ -97,4 +107,4 @@ Step 2, day 3, same thread, empty subject, angle 1 (one-line question):
 
 ## Review log
 
-Record in the copy file header: `rubric_score`, `reviewed_by`, date, and which gates were fixed during review. The learning log gets one line only if the review changed the angle.
+Record in the copy file header: `rubric_score`, `reviewed_by`, date, `review_verdict` with the gates fixed during review, and `weakest_line` (the lowest-scoring dimension and the quoted line). The learning log gets one line only if the review changed the angle.

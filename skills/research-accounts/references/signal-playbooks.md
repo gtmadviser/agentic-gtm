@@ -2,6 +2,27 @@
 
 Each playbook answers three questions: how to observe the signal, how to verify it, and the one sentence it earns in copy. A signal that cannot be verified with a url is not a signal.
 
+## Own-product signals
+
+The strongest signals come from the company's own systems, not from a vendor. Anyone who signed up, filed an issue or hit a limit has already stated the pain. Work this table before any public signal, and before sourcing a cold list at all: a warm pool that clears the experiment's minimum sample outranks a cold one.
+
+| Signal | How to observe | Verify | Decay | The sentence it earns |
+|---|---|---|---|---|
+| Signup or trial started | product database, auth log | account id plus created date | 30 days | "You set up <product> on <date> and stopped at <step>. Most teams stall there because of X." |
+| Free tier in active use | usage events, seat count | 2 or more active weeks, or seats above 2 | 30 days | "Three people at <company> use <product> every week. The next thing that usually breaks is Y." |
+| Plan limit hit or action failed | limit events, error log | event id plus date | 14 days | "Your team hit the <limit> twice last week. That is the point where Z starts to cost time." |
+| Issue, ticket or feature request naming the pain | issue tracker, support inbox, public repo issues | issue url or ticket id | 60 days | "Your issue about <pain> is the one we hear most from <segment>. Here is what changed." |
+| Public repo interaction (star, fork, issue, discussion) | the public repository | url | 90 days | "You opened a discussion on <topic> in <repo>. Curious whether that is still open." |
+| Event, webinar or waitlist registration | registration list | registration id plus date | 30 days | "You signed up for <event> on <topic>. Two of the questions there were about X." |
+| Lapsed user | last activity date | 60 or more days idle after prior activity | 90 days | "You used <product> in <month> and then stopped. What did we get wrong?" |
+
+Rules for own-product signals:
+
+- The relationship is the consent basis. Record it in `consent_basis` and keep product accounts out of cold-list suppression logic; they are a separate pool with its own experiment.
+- State only what the recipient can verify in their own account or on the public repo. Never cite one person's usage to a colleague.
+- A paying customer or an account with an open opportunity is never enrolled in a campaign. Route it to the owner (see `signal-schema.md`, routing).
+- Usage numbers are facts with a date; the reason behind them is `inferred:` until the recipient says it.
+
 ## Person signals
 
 | Signal | How to observe | Verify | Decay | The sentence it earns |
@@ -52,3 +73,5 @@ These do not earn a sentence. They make the other playbooks possible.
 2. Quote nothing from a person's post verbatim; paraphrase the theme.
 3. Decay windows are hard limits. An expired signal is context for the segment, not a why-now.
 4. Absence of a signal is recorded, not filled.
+5. Own-product signals outrank public signals on relevance. When both exist, the opener uses the own-product one.
+6. Own-product data stays in the store. Git gets aggregate rates per signal type, never per-account usage.

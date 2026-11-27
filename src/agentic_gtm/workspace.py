@@ -156,6 +156,7 @@ FILES = {
 - Campaigns remain paused. This repository cannot activate or send campaigns.
 - Credentials are environment variables and must never be printed or committed.
 - Every credit-consuming operation is approved first.
+- Every Slack message, posted or drafted, tags the person who has to act with a real mention (`@Short` from the `team` roster in `gtm.yaml`) and links every campaign it names to the provider UI (`[[lemlist:<campaign_id>|<name>]]`). `gtm report slack plan` renders both and lists what it could not resolve.
 """,
     "gtm.yaml": """version: 1
 company:
@@ -179,6 +180,14 @@ field_maps:
   hubspot: {}
 artifacts:
   root: .
+team:                  # people tagged in Slack handoffs; slack_user_id is resolved from email when empty
+  - name: ""           # full display name, e.g. "Maximilian Muster"
+    short: ""          # how the team calls them, e.g. "Max"; write @Max in drafts
+    email: ""          # work email, used for Slack users.lookupByEmail
+    roles: []          # e.g. [sender, copy_approver, deal_owner, launch_approver]
+    slack_user_id: ""
+links:                 # deep-link templates; verify once by opening a campaign in the UI
+  lemlist_campaign: "https://app.lemlist.com/teams/{team_id}/campaigns-v2/{campaign_id}"
 """,
     ".env.example": """# Store (recommended). Leave empty to use CSV tables under .gtm/store/.
 SUPABASE_URL=

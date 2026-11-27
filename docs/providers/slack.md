@@ -13,7 +13,20 @@ Slack is where the weekly GTM review lands once a human approves it. That is the
 | Bot (recommended) | `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_ID` | `auth.test` before posting; `chat.postMessage` returns a message `ts` that is recorded as the provider ID |
 | Webhook (fallback) | `SLACK_WEBHOOK_URL` | none; the post is accepted but delivery is unverified and the report says so |
 
-Bot scope needed: `chat:write` for the target channel. Invite the bot to the channel first.
+Bot scopes needed: `chat:write` for the target channel, `users:read` and `users:read.email` to turn roster emails into mentions. Invite the bot to the channel first.
+
+## Mentions and campaign links (required in every stakeholder message)
+
+| Write in the draft | Rendered by `gtm report slack plan` | Source |
+|---|---|---|
+| `@Max` (any `short`, `name` or `aliases` of a roster member) | `<@U012ABC>` | `team` in `gtm.yaml`; `slack_user_id`, else `users.lookupByEmail` |
+| `[[lemlist:cam_123|Vorstand Sie]]` | `<https://app.lemlist.com/teams/<team>/campaigns-v2/cam_123|Vorstand Sie>` | `links.lemlist_campaign` template; team ID from `GET /team` |
+
+Bots without `users:read.email` (common for an agency bot in a Slack Connect channel shared with the client) cannot look up emails. Then set `slack_user_id` in the roster once: list `conversations.members` of the shared channel and identify each person from `users.info` or the channel history.
+
+The plan output lists `unresolved_references`. Fix them before applying: an unresolved name posts as plain text and nobody gets notified.
+
+Drafts that a human pastes into Slack do not turn `@Max` into a mention. For those, write the full display name and tell the operator to pick it from autocomplete, and write campaign links as plain URLs.
 
 Base URL: `https://slack.com/api`. Header: `Authorization: Bearer <token>`.
 

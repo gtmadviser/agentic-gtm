@@ -1,0 +1,14 @@
+{
+  "name": "agentic-gtm",
+  "owner": {
+    "name": "GTM Adviser",
+    "url": "https://gtmadviser.com"
+  },
+  "plugins": [
+    {
+      "name": "agentic-gtm",
+      "source": "./",
+      "description": "Sixteen GTM skills with playbooks from real outbound engagements, backed by a deterministic, approval-gated CLI. For technical founders and first GTM hires."
+    }
+  ]
+}

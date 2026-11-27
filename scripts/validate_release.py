@@ -22,6 +22,14 @@ def main() -> None:
     claude = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())
     if claude.get("name") != manifest["name"] or claude.get("version") != manifest["version"]:
         raise SystemExit("Claude and Codex manifests must share name and version")
+    marketplace_path = ROOT / ".claude-plugin" / "marketplace.json"
+    if marketplace_path.exists():
+        marketplace = json.loads(marketplace_path.read_text())
+        plugins = marketplace.get("plugins") or []
+        if marketplace.get("name") != manifest["name"] or not plugins:
+            raise SystemExit("Marketplace name must match the plugin name and list one plugin")
+        if plugins[0].get("name") != manifest["name"] or plugins[0].get("source") != "./":
+            raise SystemExit("Marketplace plugin must point at this repository")
     skills = sorted(path for path in (ROOT / "skills").iterdir() if path.is_dir())
     if len(skills) < 12:
         raise SystemExit(f"Expected at least 12 skills, found {len(skills)}")

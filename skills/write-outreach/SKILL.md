@@ -36,7 +36,7 @@ Do not use it:
 
 1. **Check this experiment.** Run `gtm --json next` for context, then verify the approved ICP, experiment and audience directly. Workspace-wide artifacts from another experiment do not block a new copy cycle. Resolve missing prerequisites before writing.
 2. **Load the voice override.** Read the voice block in `context/company.md`: formal or informal address, forbidden punctuation, spelling variant, which step the founder writes personally. If the block is missing, write it first with the operator and record it in `strategy/decisions.md`.
-3. **Pick one angle per message.** The experiment names the trigger. Choose the single angle that follows from it (a loss the recipient can feel, a task they are trying to staff, a season, a visible workaround). Two angles in one message is the most common reason copy underperforms.
+3. **Pick one angle per message.** The experiment names the trigger. Choose the single angle that follows from it (a loss the recipient can feel, a task they are trying to staff, a season, a visible workaround). Two angles in one message is the most common reason copy underperforms. Use the recipient's clock: hours per week for the person who does the work, calendar weeks, risk or headcount for the person who signs (see `references/copy-rules.md` section "Two clocks").
 4. **Pick 2-3 levers, not 13.** From `references/copy-rules.md` section "Levers", choose the two or three that fit the audience. Stacking more dilutes each one.
 5. **Check variable fill rates.** For every `{{variable}}` you intend to use, count how many records in the pool have it filled. Below 80 percent: drop it from step 1, or split the pool and run two variants, or define a fallback sentence. An empty variable is worse than no personalisation.
 6. **Write the opener.** Line 1 is the reason this recipient, today. Test: could this line be true for 10,000 other people? If yes, rewrite. Prefer an observation the recipient can verify in 30 seconds (their own website, their own phone line, a public review, a public job post).
@@ -46,8 +46,9 @@ Do not use it:
 10. **Write subject lines.** At most 6 words, lowercase fragment or internal-looking note, or deliberately over-intriguing. Never `Re:` or `Fwd:`. See `references/subject-lines.md`.
 11. **Write 2-3 variants per step.** Each variant changes one thing on purpose (opener type, CTA shape, proof type) and carries a one-line hypothesis. Variants without a hypothesis are noise.
 12. **Choose the channel shape.** If the experiment channel includes LinkedIn, default to a bare connection invite with no note, and treat the messaged invite as the challenger variant. See `references/copy-rules.md` section "LinkedIn-first sequences".
-13. **Run the slop check, then the rubric.** Run the detect pass from `references/anti-slop-writing.md` on every variant (name each pattern, quote the line, state the fix), then the nine-step pre-send check; a single hit fails the review. Confirm with the pass/fail list in `references/anti-slop-eval.md`. Score with `references/copy-review-rubric.md`. Any hard gate failed: fix before scoring. Score 85 or above ships, 70-84 gets one more pass, below 70 restart from step 3.
-14. **Write the output** to `campaigns/<experiment-slug>-copy.md` using the output contract below. Log the angle, levers, and variant hypotheses in `strategy/decisions.md`. Hand off to `stage-campaign`.
+13. **Run the slop check as the author.** Run the detect pass from `references/anti-slop-writing.md` on every variant (name each pattern, quote the line, state the fix), then the nine-step pre-send check; a single hit fails the draft. Confirm with the pass/fail list in `references/anti-slop-eval.md`. Fix before submitting.
+14. **Submit to a reviewer that did not write it.** The author may submit the draft; the author may not issue the verdict. Hand the drafts, the pool fill rates and `references/copy-review-rubric.md` to a fresh context (a subagent, or a new turn that has not seen the drafting conversation) and let it run the hard gates and the 12 dimensions. The reviewer returns `PASS` or `REVISE`, one line per failed gate or weak dimension with the quoted line and the fix, and names the lowest-scoring dimension and its line even on `PASS`. "Looks good" is not a verdict. Score 85 or above ships, 70-84 goes back to the author for one more pass, below 70 restart from step 3. The author never edits the score.
+15. **Write the output** to `campaigns/<experiment-slug>-copy.md` using the output contract below. Log the angle, levers, and variant hypotheses in `strategy/decisions.md`. Hand off to `stage-campaign`.
 
 ## Hard rules
 
@@ -69,6 +70,7 @@ Do not use it:
 | 14 | Native language, not translated | a native speaker would not spot a source language |
 | 15 | No placeholder copy leaves this skill | search for `TODO`, `TBD`, `[insert`, `lorem` |
 | 16 | Slop gate passes: no substitute kickers, triads, "not just", forced contrasts, pivots, hook questions, abstract noun stacks, adjective spirals, intensifiers, opener or sign-off clichés | nine-step check in `references/anti-slop-writing.md` returns zero hits |
+| 17 | The author does not issue the verdict | `review_verdict` and `weakest_line` in the copy file come from a review pass that did not draft the copy |
 
 ## Checklist
 
@@ -89,6 +91,7 @@ Do not use it:
 - [ ] 2-3 variants per step, each with a one-line hypothesis
 - [ ] Slop check: zero hits
 - [ ] Rubric score 85 or above, no hard gate failed
+- [ ] Verdict issued by a review pass that did not draft the copy; weakest line named
 - [ ] Copy file written to `campaigns/`, decision logged
 
 ## Output contract
@@ -106,6 +109,8 @@ language: de | en | fr
 channel_shape: email-only | linkedin-first | multichannel
 rubric_score: 91
 reviewed_by: <operator name>, <date>
+review_verdict: PASS | REVISE then PASS (gates fixed: G2, G8)
+weakest_line: dimension 7, "<the line the reviewer would cut first>"
 
 ## Step 1 (day 0, email)
 ### Variant A (hypothesis: verifiable observation opener beats scenario opener)
@@ -132,6 +137,7 @@ Rules for the file:
 | Opens high, replies near zero | subject promised something the body did not deliver, or copy is a feature list | align subject and opener; cut to one angle |
 | Native speakers call the copy stiff | translated from another language, superlatives, business words | rewrite from scratch in the target language with everyday words |
 | Variant results identical | variants differ in wording, not in hypothesis | change opener type, CTA shape, or proof type, one at a time |
+| Every draft scores 90 or above at first pass | the author scored its own work | rerun the rubric in a fresh context that holds only the rubric, the fill rates and the drafts |
 | Copy rejected by the operator as "not us" | voice override block missing or ignored | write the block first, then rewrite |
 | Recipient received an empty variable | fill rate not checked on the exact pool | add fallback or split the pool; re-check before staging |
 | Spam complaints from a formal vertical | informal address, pushy CTA, or two follow-ups in a week | switch to formal address, one follow-up, longer gap |

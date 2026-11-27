@@ -43,6 +43,18 @@ class SlackAdapter(ProviderAdapter):
             "team": response.get("team"),
         }
 
+    def lookup_user_id(self, email: str) -> str | None:
+        """Slack member ID for a teammate's email (scope `users:read.email`). None if unknown."""
+        if not self.api or not email:
+            return None
+        try:
+            response = self.api.request("GET", "/users.lookupByEmail", params={"email": email})
+        except AdapterError:
+            return None
+        if not response.get("ok"):
+            return None
+        return str((response.get("user") or {}).get("id") or "") or None
+
     def plan_report(self, text: str, channel: str | None = None) -> dict[str, Any]:
         channel = channel or env_value("SLACK_CHANNEL_ID", "").strip()
         if self.token and not channel:

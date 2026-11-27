@@ -3,7 +3,7 @@
   "source": "https://gtmadviser.com/tools",
   "canonical_runtime_copy": "src/agentic_gtm/catalog/tools.snapshot.json",
   "ranking_policy": "Declared requirements and capability fit only; affiliate status is excluded.",
-  "disclosure": "I have partner arrangements with some of the tools I recommend. It never changes what I recommend, and where I have partner rates I pass the discount to you.",
+  "disclosure": "Some links are referral links that may earn me a commission. Some also give you extra credits or a discount. I recommend tools based on fit.",
   "tools": [
     {"slug": "ai-ark", "category": "sourcing", "tracked": true},
     {"slug": "blitzapi", "category": "sourcing", "tracked": true},

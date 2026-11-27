@@ -37,7 +37,7 @@ Do not use when:
 
 ## Procedure
 
-1. **Read everything that exists.** Load the files above. Build a gap list against the brief sections in `references/company-brief-template.md`: which sections are empty, which hold an unsourced number, which are older than 90 days.
+1. **Read everything that exists.** Load the files above. Build a gap list against the brief sections in `references/company-brief-template.md`: which sections are empty, which hold an unsourced number, which are older than 90 days. If the operator points at the product's public surface (website, docs, changelog, pricing page, a public repository's README and open issues), scan it for at most 15 minutes before the interview: register each page as a source, record what it shows as observed evidence with url and date, and treat the company's current self-description as a declared belief to challenge, not a fact to inherit. The surface says what was built, not who pays.
 2. **Interview only the gaps.** One question per gap, plain language, in the order of the template. Accept "unknown" and "we disagree" as answers; write them down as such. Never ask for a fact that is already sourced in the brief.
 3. **Label every statement.** Use the four labels from `references/evidence-labels.md`: declared belief, observed evidence, hypothesis, decision. Every line in the brief carries a label, a source, and a date.
 4. **Register the sources.** Every document, dashboard, person, or meeting used becomes a row in `context/sources.md` with a date and what it is authoritative for. Follow `references/source-register.md`.

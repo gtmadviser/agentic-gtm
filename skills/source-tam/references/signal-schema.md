@@ -15,7 +15,7 @@ Buying signals from every source land in one shape, are deduplicated structurall
 | Column | Type | Meaning |
 |---|---|---|
 | `signal_id` | text, primary key | `sha1(signal_type \| entity_key \| natural_key)` |
-| `signal_type` | enum | `new_in_role`, `linkedin_engagement`, `funding_round`, `company_news`, `hiring`, `job_post_language`, `tech_on_website`, `pricing_page`, `community_thread`, `alert` |
+| `signal_type` | enum | `new_in_role`, `linkedin_engagement`, `funding_round`, `company_news`, `hiring`, `job_post_language`, `tech_on_website`, `pricing_page`, `community_thread`, `product_usage`, `alert` |
 | `entity_key` | text | the person or company the signal belongs to (LinkedIn slug or normalized domain) |
 | `natural_key` | text | what makes this signal unique in its source |
 | `occurred_at` | timestamp | when the signal happened; falls back to `ingested_at` |
@@ -46,6 +46,7 @@ Plus `signals_seen (signal_id, first_seen_at)` as the idempotency log.
 | tech_on_website | company domain | technology plus first-seen date |
 | pricing_page | company domain | page hash |
 | community_thread | user or company | thread timestamp |
+| product_usage | account id or normalized email | event type plus occurred_at |
 | alert | alert entity | alert id plus fired time |
 
 Insert with `ON CONFLICT (signal_id) DO NOTHING`. A re-run never double-reports.

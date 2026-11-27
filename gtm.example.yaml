@@ -20,3 +20,11 @@ field_maps:
   hubspot: {}
 artifacts:
   root: .
+team:                  # people tagged in Slack handoffs; slack_user_id is resolved from email when empty
+  - name: ""           # full display name, e.g. "Maximilian Muster"
+    short: ""          # how the team calls them, e.g. "Max"; write @Max in drafts
+    email: ""          # work email, used for Slack users.lookupByEmail
+    roles: []          # e.g. [sender, copy_approver, deal_owner, launch_approver]
+    slack_user_id: ""
+links:                 # deep-link templates; verify once by opening a campaign in the UI
+  lemlist_campaign: "https://app.lemlist.com/teams/{team_id}/campaigns-v2/{campaign_id}"
